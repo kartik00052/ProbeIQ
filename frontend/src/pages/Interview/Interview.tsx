@@ -52,6 +52,7 @@ export default function Interview() {
         {history.length > 0 && (
           <div
             ref={historyEndRef}
+            role="region"
             className="flex max-h-[34vh] flex-col gap-4 overflow-y-auto pr-2"
             aria-label="Interview transcript so far"
           >
