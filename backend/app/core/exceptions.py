@@ -55,3 +55,8 @@ class SessionCompletedError(ProbeIQError):
 class InterviewEngineError(ProbeIQError):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     code = "interview_engine_error"
+
+
+class LLMConfigurationError(ProbeIQError):
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    code = "llm_configuration_error"

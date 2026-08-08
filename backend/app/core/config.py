@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -28,14 +29,26 @@ class Settings(BaseSettings):
     hard_max_questions: int = 16
 
     # Optional LLM-backed question generator / answer evaluator.
-    # Points at any OpenAI-compatible endpoint (e.g. NVIDIA NIM or OpenAI).
-    # When disabled, the deterministic template generator and heuristic
+    # The deterministic ProbeIQ controller still decides WHAT to probe; the LLM only
+    # decides HOW to phrase the question and how to judge an answer.
+    # When disabled (default), the template question generator and heuristic
     # evaluator are used so the service runs fully offline.
     llm_enabled: bool = False
+    # Chat model provider: "nvidia" | "openai" | "openai-compatible".
+    # "nvidia" reaches NVIDIA-hosted GLM 5.2 via its OpenAI-compatible endpoint
+    # (default base URL applied by app.llm.factory when base_url is empty).
+    llm_provider: str = "openai-compatible"
     llm_base_url: str = ""
-    llm_api_key: str = ""
+    # Stored as SecretStr so repr/logs never expose the key.
+    llm_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
     llm_temperature: float = 0.0
+    # Sampling / generation knobs (GLM 5.2 defaults documented in .env.example).
+    llm_top_p: float = 1.0
+    llm_max_tokens: int = 16384
+    llm_seed: int = 42
+    # Bounded retry count for transient LLM failures (handled by the chat client).
+    llm_max_retries: int = 2
 
 
 settings = Settings()

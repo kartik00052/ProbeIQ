@@ -1,4 +1,14 @@
+import os
+
 import pytest
+
+# The offline suite must stay deterministic regardless of the developer's
+# backend/.env: force the LLM off unless the opt-in live LLM test run
+# (PROBEIQ_LIVE_LLM_TEST=true) explicitly requests the real model.
+# The env var is set before any app import so the Settings singleton in
+# app.core.config (and the API's module-level LLM construction) sees it.
+if os.getenv("PROBEIQ_LIVE_LLM_TEST") != "true":
+    os.environ["PROBEIQ_LLM_ENABLED"] = "false"
 
 from app.agents.evaluation_agent import DeterministicAnswerEvaluator
 from app.agents.feedback_agent import DeterministicFeedbackGenerator

@@ -1,5 +1,5 @@
+from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import ChatOpenAI
-from pydantic import SecretStr
 
 from app.agents.evaluation_agent import (
     AnswerEvaluator,
@@ -17,6 +17,7 @@ from app.agents.question_agent import (
     QuestionGenerator,
 )
 from app.core.config import settings
+from app.llm.factory import get_llm
 from app.repositories.candidate_repository import CandidateRepository
 from app.repositories.curriculum_repository import CurriculumRepository
 from app.repositories.session_store import InMemorySessionStore
@@ -39,16 +40,14 @@ strategy_service = StrategyService(curriculum_knowledge_service)
 session_store = InMemorySessionStore()
 
 
-def _build_llm() -> ChatOpenAI | None:
-    """OpenAI-compatible chat model when LLM integration is enabled and configured."""
-    if not (settings.llm_enabled and settings.llm_api_key and settings.llm_model):
-        return None
-    return ChatOpenAI(
-        model=settings.llm_model,
-        api_key=SecretStr(settings.llm_api_key),
-        base_url=settings.llm_base_url or None,
-        temperature=settings.llm_temperature,
-    )
+def _build_llm() -> ChatOpenAI | ChatNVIDIA | None:
+    """Configured LangChain chat model via the central factory; ``None`` = offline.
+
+    The factory validates provider/settings and never returns a model when the
+    LLM is disabled, so the deterministic template generator and heuristic
+    evaluator remain the offline default.
+    """
+    return get_llm()
 
 
 def _question_generator() -> QuestionGenerator:
