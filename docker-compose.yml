@@ -1,0 +1,21 @@
+# ProbeIQ backend service.
+#
+# NOTE: a PostgreSQL service is intentionally NOT defined here. The application
+# does not currently use a database (no asyncpg/sqlalchemy/redis usage in app/);
+# adding an artificial database container would add no value.
+# The declared-but-unused DB dependencies in backend/pyproject.toml are a
+# pre-existing follow-up item, not part of this configuration.
+services:
+  backend:
+    build: ./backend
+    image: probeiq-backend
+    container_name: probeiq-backend
+    ports:
+      - "8000:8000"
+    # Optional: backend/.env is loaded if present (it is git-ignored and must
+    # not be committed). Without it the service starts with the LLM disabled
+    # and runs fully offline.
+    env_file:
+      - path: ./backend/.env
+        required: false
+    restart: unless-stopped

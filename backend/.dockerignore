@@ -1,0 +1,22 @@
+# Dependencies / virtual environments
+.venv
+
+# Python caches
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+
+# Secrets
+.env
+
+# Tests and audit artifacts (not required at runtime)
+tests
+AUDIT_REPORT.md
+audit_verify.py
+
+# Temporary files
+*.log
+*.tmp

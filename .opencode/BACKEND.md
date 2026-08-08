@@ -76,6 +76,27 @@
 - Declared in `pyproject.toml` but not used. Do not add database models or
   infrastructure the project does not require.
 
+## Setup & infrastructure (uv + Docker)
+- Dependency management is uv (pinned to 0.11.21; Python 3.13 via
+  `backend/.python-version`). From `backend/`:
+  - `uv sync --locked` — install the locked environment.
+  - `uv run pytest` / `uv run ruff check app tests` / `uv run mypy app tests`.
+- Local run: `cd backend && uv run uvicorn app.main:app --reload` (entry point is
+  `app.main:app`, defined in `backend/app/main.py`).
+- Secrets: copy `backend/.env.example` to `backend/.env` and fill in values such
+  as `PROBEIQ_LLM_API_KEY`. `backend/.env` is git-ignored; `.env.example`
+  contains placeholders only and must never carry real credentials.
+- Docker:
+  - Build: `docker build -t probeiq-backend ./backend` (`backend/Dockerfile`,
+    python:3.13-slim, production dependency group only).
+  - Start: `docker compose up -d` from the repo root (single `backend` service
+    on port 8000; `backend/.env` is loaded when present and is optional).
+  - Stop: `docker compose down`. Do NOT use `down -v` (it deletes named volumes).
+- PostgreSQL: NOT currently used by the application — there is no DB code under
+  `backend/app/`, so no postgres service is defined in docker-compose.yml. The
+  `asyncpg`/`sqlalchemy`/`redis` deps declared in `backend/pyproject.toml` are
+  unused placeholders; wiring a database is a separate follow-up item.
+
 ## Testing
 - Run `pytest` from `backend/` (test suite: `backend/tests/`).
 - Run `ruff check .` and `mypy app tests` from `backend/`.
