@@ -21,6 +21,16 @@ class Settings(BaseSettings):
     data_dir: Path = DEFAULT_DATA_DIR
     environment: str = "development"
 
+    # CORS allowed browser origins (comma-separated). The interview API carries no
+    # cookies or auth headers, so credentials stay disabled. Defaults to the Vite
+    # dev origin; set PROBEIQ_CORS_ALLOWED_ORIGINS to the deployed frontend
+    # origin(s) in production (e.g. https://app.example.com). Never use "*".
+    cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
+
     # Adaptive interview engine constants (see .opencode/technical-spec.md).
     min_questions: int = 8
     min_covered_days: int = 4

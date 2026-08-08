@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes.interview import router
+from app.core.config import settings
 from app.core.exceptions import ProbeIQError
 
 APP_NAME = "ProbeIQ Interview API"
@@ -12,8 +14,30 @@ def _error_response(status_code: int, code: str, detail: str) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={"error": code, "detail": detail})
 
 
+def _configure_cors(app: FastAPI) -> None:
+    """Explicit, environment-configured CORS.
+
+    Origins come from PROBEIQ_CORS_ALLOWED_ORIGINS (comma-separated). No
+    wildcard: only the listed frontend origin(s) may call the API. Credentials
+    are explicitly disabled because the API never uses cookies or auth headers.
+    """
+    origins = settings.cors_origins
+    if not origins:
+        return
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
+        max_age=86400,
+    )
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title=APP_NAME, version="0.1.0")
+
+    _configure_cors(app)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:

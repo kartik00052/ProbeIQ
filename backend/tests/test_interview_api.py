@@ -127,3 +127,27 @@ def test_health_check_endpoint_exists(client: TestClient) -> None:
     response = client.get("/openapi.json")
     assert response.status_code == 200
     assert "/api/interview" in response.json()["paths"]
+
+
+def test_cors_allows_configured_origin(client: TestClient) -> None:
+    response = client.options(
+        "/api/interview",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def test_cors_denies_unlisted_origin(client: TestClient) -> None:
+    response = client.options(
+        "/api/interview",
+        headers={
+            "Origin": "https://evil.example.com",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert response.status_code == 400
+    assert response.headers.get("access-control-allow-origin") is None
