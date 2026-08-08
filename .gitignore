@@ -14,3 +14,6 @@ frontend/test-results/
 
 # Environment
 .env
+
+# AI tooling scratch output
+.impeccable/
