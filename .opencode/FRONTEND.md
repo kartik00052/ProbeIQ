@@ -2,15 +2,19 @@
 
 ## Verified stack (as of this document)
 - Declared dependencies (`frontend/package.json`): axios, framer-motion,
-  react-router-dom, zod, zustand. eslint toolchain under `devDependencies`.
+  react-router-dom, zod, zustand, react, react-dom, three,
+  @react-three/fiber, @react-three/drei. Tailwind v4 + fontsource variable
+  fonts (Outfit, JetBrains Mono). eslint toolchain under `devDependencies`.
+- Toolchain lives at `frontend/` root (Vite 8, TypeScript, eslint, `index.html`).
+  The obsolete nested `frontend/frontend/` scaffold was removed.
 - Source tree structure: `src/` with `pages/`, `components/`, `hooks/`,
   `api/`, `services/`, `stores/`, `types/`, `constants/`, `router/`, `lib/`,
-  `utils/`.
-- **All files under `frontend/src/` are currently empty (0 bytes).** There is no
-  runnable frontend code yet.
-- React, TypeScript, and Vite are **not currently verified**: they are not
-  declared in `package.json`, and there is no `index.html` or Vite config at the
-  `frontend/` root. Do not assume they are configured.
+  `utils/`, `layouts/`.
+- A runnable app is scaffolded (routes, zustand store, backend client, WebGL
+  presence). Verified: `npm run build` and `npm run lint` pass in `frontend/`.
+  NOTE: `src/components/three/PresenceScene.tsx` is lazy-loaded and ships as a
+  large (~880 kB min) WebGL chunk; it never blocks first paint.
+- Design intent is documented in `frontend/DESIGN.md`.
 
 ## Scope
 If the user requests frontend-only work, do NOT modify backend files.
