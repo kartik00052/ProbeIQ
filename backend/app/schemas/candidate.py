@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, model_validator
+
+Outcome = Literal["passed", "failed", "skipped"]
 
 
 class CandidateMember(BaseModel):

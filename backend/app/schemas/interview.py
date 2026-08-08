@@ -14,7 +14,9 @@ class InterviewMessageRequest(BaseModel):
 
 
 class InterviewFeedback(BaseModel):
-    summary: str
+    """Final feedback contract -- exactly the fields required by technical-spec.md."""
+
+    summary: str = Field(min_length=1)
     strengths: list[str]
     gaps: list[str]
     next: list[str]

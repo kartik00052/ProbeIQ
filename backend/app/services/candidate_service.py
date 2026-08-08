@@ -2,9 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.schemas.candidate import Candidate, Mission
+from app.schemas.candidate import Candidate, Mission, Outcome
 
-Outcome = Literal["passed", "failed", "skipped"]
 Strength = Literal["strong", "moderate", "weak", "not_assessed"]
 
 

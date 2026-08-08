@@ -5,12 +5,5 @@
     "react-router-dom": "^7.18.2",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "eslint": "^10.8.1",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.3",
-    "typescript-eslint": "^8.66.0"
   }
 }
