@@ -1,0 +1,9 @@
+from app.repositories.candidate_repository import CandidateRepository
+from app.repositories.curriculum_repository import CurriculumRepository
+from app.services.candidate_service import CandidateAnalysisService
+from app.services.curriculum_service import CurriculumSelectionService
+
+candidate_repository = CandidateRepository()
+curriculum_repository = CurriculumRepository()
+candidate_analysis_service = CandidateAnalysisService()
+curriculum_selection_service = CurriculumSelectionService(curriculum_repository)
