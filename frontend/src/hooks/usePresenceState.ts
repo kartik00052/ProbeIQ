@@ -4,7 +4,12 @@ import type { InterviewStatus } from '../types/interview'
 
 export type PresenceState = 'idle' | 'thinking' | 'responding' | 'waiting' | 'complete'
 
-export function usePresenceState(): PresenceState {
+export interface PresenceView {
+  state: PresenceState
+  interviewing: boolean
+}
+
+export function usePresenceState(): PresenceView {
   const status = useInterviewStore((s) => s.status)
   const [responding, setResponding] = useState(false)
   const previousStatus = useRef<InterviewStatus>(status)
@@ -22,9 +27,11 @@ export function usePresenceState(): PresenceState {
     previousStatus.current = status
   }, [status])
 
-  if (responding) return 'responding'
-  if (status === 'thinking') return 'thinking'
-  if (status === 'complete') return 'complete'
-  if (status === 'active') return 'waiting'
-  return 'idle'
+  const interviewing = status !== 'idle'
+
+  if (responding) return { state: 'responding', interviewing }
+  if (status === 'thinking') return { state: 'thinking', interviewing }
+  if (status === 'complete') return { state: 'complete', interviewing }
+  if (status === 'active') return { state: 'waiting', interviewing }
+  return { state: 'idle', interviewing }
 }

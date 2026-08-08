@@ -8,7 +8,7 @@ import { useInterview } from '../../hooks/useInterview'
 import { ROUTES } from '../../constants/routes'
 
 export default function CandidateSetup() {
-  const { start, status, error, reset } = useInterview()
+  const { start, status, error, reset, candidate } = useInterview()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -19,7 +19,7 @@ export default function CandidateSetup() {
   const loading = status === 'thinking'
 
   return (
-    <AppLayout showPresence={false}>
+    <AppLayout showPresence={status === 'thinking'}>
       <nav className="flex justify-between py-2">
         <Logo />
         <button type="button" onClick={reset} className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline">
@@ -35,7 +35,7 @@ export default function CandidateSetup() {
         </p>
         {error && (
           <div className="mb-6">
-            <ErrorMessage message={error} onRetry={reset} />
+            <ErrorMessage message={error} onRetry={() => candidate && start(candidate)} />
           </div>
         )}
         <CandidateForm onStart={start} loading={loading} />

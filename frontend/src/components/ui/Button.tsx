@@ -18,7 +18,6 @@ const variantClasses: Record<ButtonVariant, string> = {
 export function Button({ variant = 'primary', className, children, disabled, ...props }: ButtonProps) {
   return (
     <motion.button
-      whileHover={disabled ? undefined : { scale: 1.03 }}
       whileTap={disabled ? undefined : { scale: 0.97 }}
       transition={springs.snappy}
       className={`${variantClasses[variant]} disabled:pointer-events-none disabled:opacity-40 ${className ?? ''}`}

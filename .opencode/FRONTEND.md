@@ -24,7 +24,7 @@ If the user requests frontend-only work, do NOT modify backend files.
   - `pages/` — route-level screens.
   - `components/` — reusable UI; group by feature (`candidate/`, `interview/`,
     `feedback/`, `common/`, `ui/`, `animations/`).
-  - `hooks/` — reusable logic (e.g. `useInterview`, `useWebSocket`).
+  - `hooks/` — reusable logic (e.g. `useInterview`, `usePresenceState`).
   - `api/` — HTTP client and request functions.
   - `services/` — orchestration of api calls and state updates.
   - `stores/` — client state (zustand).
@@ -43,8 +43,11 @@ If the user requests frontend-only work, do NOT modify backend files.
   `.opencode/technical-spec.md`.
 - Do not create fake API responses and present them as real backend
   functionality. Clearly label temporary mocks as mocks.
-- The backend `POST /api/interview` currently returns a dev placeholder reply;
-  do not document it as a working interview API.
+- The backend `POST /api/interview` runs a real adaptive interview engine.
+  By default it is deterministic and fully offline (LLM-backed phrasing/eval is
+  optional via `PROBEIQ_LLM_*` config). Frontend responses arrive under
+  `{reply, done, feedback?}` — do not document LLM-specific behavior as
+  guaranteed.
 
 ## TypeScript rules
 - Prefer explicit types for data crossing API boundaries.

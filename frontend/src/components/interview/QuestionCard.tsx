@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { questionVariants } from '../animations/variants'
 
 interface QuestionCardProps {
@@ -8,17 +8,26 @@ interface QuestionCardProps {
 
 export function QuestionCard({ text, index }: QuestionCardProps) {
   return (
-    <motion.article
-      key={index}
-      variants={questionVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      style={{ transformStyle: 'preserve-3d' }}
-      className="relative"
-    >
-      <div className="mb-2 font-mono text-xs uppercase tracking-widest text-accent">Question {index}</div>
-      <p className="text-xl leading-relaxed text-text md:text-2xl">{text}</p>
-    </motion.article>
+    <div className="relative" style={{ perspective: '1200px' }}>
+      <AnimatePresence mode="wait">
+        <motion.article
+          key={index}
+          variants={questionVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          aria-live="polite"
+          className="relative"
+        >
+          <header className="mb-3 flex items-baseline justify-between gap-4">
+            <span className="font-mono text-xs uppercase tracking-widest text-accent">Interviewer</span>
+            <span className="font-mono text-xs tabular-nums text-text-dim">
+              Q{String(index).padStart(2, '0')}
+            </span>
+          </header>
+          <p className="break-words text-2xl leading-snug tracking-tight text-text md:text-3xl md:leading-tight">{text}</p>
+        </motion.article>
+      </AnimatePresence>
+    </div>
   )
 }

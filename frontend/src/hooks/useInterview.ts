@@ -12,8 +12,12 @@ export function useInterview() {
   const lastReply = useInterviewStore((s) => s.lastReply)
 
   const start = useCallback((candidate: Candidate) => useInterviewStore.getState().start(candidate), [])
-  const answer = useCallback((message: string) => useInterviewStore.getState().answer(message), [])
+  const answer = useCallback(
+    (message: string): Promise<boolean> => useInterviewStore.getState().answer(message),
+    [],
+  )
+  const retry = useCallback((): Promise<boolean> => useInterviewStore.getState().retry(), [])
   const reset = useCallback(() => useInterviewStore.getState().reset(), [])
 
-  return { status, sessionId, candidate, transcript, feedback, error, lastReply, start, answer, reset }
+  return { status, sessionId, candidate, transcript, feedback, error, lastReply, start, answer, retry, reset }
 }

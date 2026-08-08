@@ -7,73 +7,94 @@ import { InterviewTimer } from '../../components/interview/InterviewTimer'
 import { InterviewProgress } from '../../components/interview/InterviewProgress'
 import { QuestionCard } from '../../components/interview/QuestionCard'
 import { AnswerInput } from '../../components/interview/AnswerInput'
-import { AIThinkingIndicator } from '../../components/interview/AIThinkingIndicator'
 import { ErrorMessage } from '../../components/common/ErrorMessage'
 import { useInterview } from '../../hooks/useInterview'
 import { ROUTES } from '../../constants/routes'
-import { fadeUpVariants } from '../../components/animations/variants'
 
 export default function Interview() {
-  const { status, transcript, error, lastReply, answer } = useInterview()
+  const { status, transcript, error, lastReply, candidate, answer, retry } = useInterview()
   const navigate = useNavigate()
-  const transcriptEndRef = useRef<HTMLDivElement>(null)
+  const historyEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (status === 'complete') navigate(ROUTES.complete)
   }, [status, navigate])
 
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = historyEndRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distanceFromBottom < 96) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [transcript.length])
 
   const asked = Math.ceil(transcript.length / 2)
-  const answered = Math.floor(transcript.length / 2)
-  const waitingForAnswer = status === 'active'
   const thinking = status === 'thinking'
+  const history =
+    transcript.length > 0 && transcript[transcript.length - 1].role === 'interviewer'
+      ? transcript.slice(0, -1)
+      : transcript
 
   return (
     <AppLayout>
-      <InterviewHeader>
-        <div className="flex items-center gap-4">
-          <InterviewTimer paused={status !== 'active'} />
-          <InterviewProgress asked={asked} answered={answered} />
-        </div>
+      <InterviewHeader topic={candidate?.member.jobRole}>
+        <InterviewTimer paused={status !== 'active'} />
       </InterviewHeader>
 
-      <div className="flex flex-1 flex-col justify-end gap-6 py-8">
-        <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto pr-2">
-          {transcript.slice(0, -1).map((message) => (
-            <motion.div
-              key={message.id}
-              variants={fadeUpVariants}
-              initial="initial"
-              animate="animate"
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                message.role === 'candidate'
-                  ? 'self-end bg-accent/10 text-text'
-                  : 'self-start bg-surface text-text-dim'
-              }`}
-            >
-              {message.text}
-            </motion.div>
-          ))}
-          <div ref={transcriptEndRef} />
-        </div>
+      {candidate && <InterviewProgress missions={candidate.missions} />}
 
-        {waitingForAnswer && lastReply && (
-          <QuestionCard text={lastReply} index={asked} />
+      <div className="flex flex-1 flex-col justify-end gap-6 pt-8">
+        {lastReply && (
+          <div className="sticky top-0 z-10 -mx-6 bg-bg/85 px-6 pb-4 pt-2 backdrop-blur-md">
+            <QuestionCard text={lastReply} index={asked} />
+          </div>
         )}
-        {thinking && <AIThinkingIndicator />}
 
-        <AnimatePresence>
+        {history.length > 0 && (
+          <div
+            ref={historyEndRef}
+            className="flex max-h-[34vh] flex-col gap-4 overflow-y-auto pr-2"
+            aria-label="Interview transcript so far"
+          >
+            {history.map((message) => (
+              <motion.div
+                key={message.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className={`flex flex-col gap-1 ${
+                  message.role === 'candidate' ? 'items-end self-end' : 'items-start self-start'
+                }`}
+              >
+                <span className="font-mono text-xs uppercase tracking-widest text-text-dim/70">
+                  {message.role === 'candidate' ? 'You' : 'Interviewer'}
+                </span>
+                <p
+                  className={`break-words text-sm leading-relaxed ${
+                    message.role === 'candidate' ? 'text-text' : 'text-text-dim'
+                  }`}
+                >
+                  {message.text}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        <div className="sticky bottom-0 z-10 -mx-6 flex flex-col gap-2 bg-bg/85 px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 -mb-8 backdrop-blur-md">
+          <AnimatePresence>
           {error && (
-            <motion.div key={error} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <ErrorMessage message={error} />
+            <motion.div
+              key={error}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              <ErrorMessage message={error} onRetry={retry} />
             </motion.div>
           )}
         </AnimatePresence>
 
         <AnswerInput disabled={thinking} onSubmit={answer} />
+        </div>
       </div>
     </AppLayout>
   )

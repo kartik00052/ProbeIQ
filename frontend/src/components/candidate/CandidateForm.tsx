@@ -38,7 +38,7 @@ export function CandidateForm({ onStart, loading }: CandidateFormProps) {
           rows={14}
           spellCheck={false}
           aria-label="Candidate profile JSON"
-          className="w-full resize-y rounded-2xl border border-line bg-surface/80 p-4 font-mono text-xs leading-relaxed text-text focus:border-accent focus:outline-none"
+          className="w-full resize-y rounded-2xl border border-line bg-surface/80 p-4 font-mono text-base leading-relaxed text-text focus:border-accent focus:outline-none md:text-xs"
         />
         {error && <p className="mt-2 text-sm text-danger">{error}</p>}
       </div>

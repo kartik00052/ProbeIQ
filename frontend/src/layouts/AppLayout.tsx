@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { Presence } from '../components/three/Presence'
+import { Observatory } from '../components/backdrop/Observatory'
 import { usePresenceState } from '../hooks/usePresenceState'
 import { fadeUpVariants } from '../components/animations/variants'
 
@@ -10,11 +11,14 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children, showPresence = true }: AppLayoutProps) {
-  const presence = usePresenceState()
+  const { state, interviewing } = usePresenceState()
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg text-text" style={{ perspective: '1200px' }}>
-      {showPresence && <Presence state={presence} />}
+    <div className="relative min-h-screen bg-bg text-text" style={{ perspective: '1200px' }}>
+      <div className="absolute inset-0 z-0 overflow-hidden">
+        <Observatory />
+      </div>
+      {showPresence && <Presence state={state} interviewing={interviewing} />}
       <motion.main
         variants={fadeUpVariants}
         initial="initial"

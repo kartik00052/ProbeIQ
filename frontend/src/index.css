@@ -32,3 +32,16 @@
     background-color: rgb(79 209 197 / 0.3);
   }
 }
+
+@layer utilities {
+  .observatory-star {
+    position: absolute;
+    border-radius: 9999px;
+    background-color: rgb(230 238 235 / 0.9);
+    opacity: var(--star-opacity, 0.5);
+  }
+
+  .observatory-star--teal {
+    background-color: rgb(79 209 197 / 0.9);
+  }
+}

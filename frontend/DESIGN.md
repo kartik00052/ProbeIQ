@@ -3,6 +3,8 @@
 Status: **Locked** (all decisions confirmed with the user on 2026-08-09).
 This document is the source of truth for the frontend build. The backend API
 contract in `.opencode/technical-spec.md` is authoritative for data shapes.
+Implementation-verified details from the 2026-08-09 build audit supersede any
+conflicting prose below.
 
 ## 1. Locked decisions
 
@@ -41,46 +43,52 @@ contract in `.opencode/technical-spec.md` is authoritative for data shapes.
 
 ## 4. The presence (WebGL core)
 
-One lazy-loaded react-three-fiber scene. The AI as a luminous GPGPU /
-particle-field core. Loaded after first paint; never the LCP element.
+One lazy-loaded react-three-fiber scene. The AI as a luminous particle-field
+core. Loaded after first paint; never the LCP element.
 
 State machine (driven by zustand, client-derived):
 
 | State | Trigger | Motion |
 |---|---|---|
 | `IDLE` | app open, no interview | slow drift, soft breathing |
-| `THINKING` | interview request in-flight | core contracts + brightens, spin-up |
-| `RESPONDING` | reply arrives | burst, then ease to neutral |
-| `WAITING` | awaiting candidate input | calm float |
-| `COMPLETE` | `done: true` | collapse into feedback |
+| `THINKING` | interview request in-flight | core contracts + brightens, short damped spin-up |
+| `RESPONDING` | reply arrives | brief burst, then ease to neutral |
+| `WAITING` | awaiting candidate input | near-still (ambient movement gated ~0.3× while the candidate reads) |
+| `COMPLETE` | `done: true` | quiets and recedes; frameloop paused |
 
-Signature moment: on "Begin Interview" the 3D core **collapses into a flat
-2D transcript element** (Lusion-style 3D→2D) so focus moves to the interview.
+Signature moment: on "Begin Interview" the 3D presence activates and **recedes**
+(scale/opacity/depth) so the 2D interview content becomes the focus. A literal
+3D→2D collapse of the core was considered but deliberately not pursued — the
+recede choreography keeps the presence calm behind readable content without a
+decorative transition.
 
 WebGL discipline: dpr-capped, geometry disposal, static poster fallback on
 low-tier mobile, scene paused off-screen.
 
 ## 5. The console (CSS 3D, Framer Motion)
 
-- Shared `perspective: 1000–1400px` scene; one vanishing point.
-- Questions **push in from `z:-100`** with a small `rotateY`, travelling
-  through space, not sliding on glass.
-- Pointer-tracked depth stack via `useMotionValue → useSpring`:
-  bg field `z:0`, floating context cards `z:5`, active question `z:10`.
-- Topic transitions: `AnimatePresence mode="wait"`, one consistent 3D
-  choreography (old card tilts `rotateX:25` + recedes, new one advances).
-- Completion → feedback expands from the collapsed core.
+- Shared `perspective: 1000–1400px` scene; one vanishing point (1200px on
+  `AppLayout` and the question card).
+- Questions **push in from depth** (`z:-80`, `rotateX:-3`) via a central
+  `snappy` spring, travelling through space, not sliding on glass.
+- Completion → the presence quiets; feedback reveals from a two-phase depth
+  entrance.
+- Topic transitions: deferred. The backend does not yet expose reliable
+  curriculum/topic metadata, so no topic transition state is fabricated. The
+  architecture keeps the extension point open (`InterviewHeader` accepts a
+  `topic` prop) to reintroduce a topic choreography when the backend provides
+  the data.
 
 ### Spring presets (centralized in `src/lib/motion.ts`)
 
 | Preset | Values | Use |
 |---|---|---|
-| `snappy` | `{stiffness: 400, damping: 30}` | presence state changes |
-| `ui` | `{stiffness: 200, damping: 25}` | cards, questions, parallax |
-| `gentle` | `{stiffness: 100, damping: 20}` | breathing, idle drift |
+| `snappy` | `{stiffness: 400, damping: 30}` | question arrival, presence state changes |
+| `ui` | `{stiffness: 200, damping: 25}` | cards, depth transitions (with `mass: 0.6`) |
 
-`z`/depth tweens on `circInOut`. Animate `transform` + `opacity` only.
-Never `overflow:hidden` or sub-1 opacity on a 3D parent (flattens `preserve-3d`).
+Depth/transform tweens use these central springs. Animate `transform` +
+`opacity` only. Never `overflow:hidden` or sub-1 opacity on a 3D parent
+(flattens `preserve-3d`).
 
 ## 6. Design tokens
 
