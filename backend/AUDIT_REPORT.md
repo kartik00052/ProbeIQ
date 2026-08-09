@@ -58,3 +58,56 @@ None.
 4. Commit `audit_verify.py` (or equivalent) as a deterministic regression suite.
 5. (Manual) verify live GLM 5.2 on a machine with working network; validate structured LLM output end-to-end.
 6. Dockerize per plan; freeze backend.
+
+---
+
+# Addendum — 2026-08-09 (auth + ownership, commit `b9a711a`)
+
+The Phase 15 report above describes the backend at commit `1bfb1b5`. A
+user-approved authentication extension was merged afterward. This addendum
+records what changed and its impact on the audit's findings.
+
+## Summary
+
+| Metric | Result |
+|---|---|
+| Unit tests | **180 passed, 3 skipped** (live-LLM opt-in), 5.5 s |
+| Lint (ruff) | clean (`All checks passed`) |
+| Types (mypy) | clean (`Success: no issues found in 89 source files`) |
+| Frontend e2e (Playwright) | **51 passed, 4 skipped** |
+
+## What changed
+
+- **New endpoints:** `POST /api/auth/register` (201), `POST /api/auth/login`,
+  `POST /api/auth/logout`, `GET /api/auth/me`. `POST /api/interview` now
+  requires a valid session cookie (`401 not_authenticated`).
+- **New modules:** `app/api/routes/auth.py`, `app/core/security.py` (Argon2id +
+  token generation), `app/core/database.py` (SQLAlchemy engine/session wiring),
+  `app/models/` (`User`, `AuthSession`), `app/repositories/user_repository.py`,
+  `app/repositories/auth_session_repository.py`, `app/services/auth_service.py`,
+  `app/schemas/auth.py`.
+- **Ownership:** interview sessions carry `owner_user_id`; cross-account access
+  returns `403 forbidden` (`get_current_user` in `app/api/dependencies.py`).
+- **CORS:** credentials are now enabled (the API authenticates via a cookie);
+  origins must stay explicit — `allow_credentials=True` in `app/main.py`.
+- **Deps:** added `argon2-cffi`, `email-validator`; `sqlalchemy` is now **used**
+  (SQLite for auth) rather than a placeholder.
+
+## Impact on the audit's open findings
+
+- **P1-3 (no CORS)** — resolved as part of auth (credentials enabled).
+- **P14 (database decision)** — partially superseded: auth persists in SQLite
+  via SQLAlchemy; interview sessions intentionally remain in `InMemorySessionStore`.
+- **P1-2 (`DataLoadError` path leak)** — still open.
+- **P2-4 (no observability), P3-9 (no `pip-audit`), live-LLM verification** —
+  unchanged and still open.
+
+## New security notes
+
+- Passwords are hashed with Argon2id; login returns one generic message so the
+  API never reveals whether an email exists.
+- Session tokens are opaque, server-side, revocable (logout deletes the row),
+  and delivered only in an HTTP-only `SameSite=Lax` cookie (Secure in production).
+- New open items: no rate limiting / brute-force protection on auth endpoints;
+  the SQLite DB file is git-ignored but should be excluded from any artifact
+  builds.

@@ -1,10 +1,10 @@
 # ProbeIQ backend service.
 #
-# NOTE: a PostgreSQL service is intentionally NOT defined here. The application
-# does not currently use a database (no asyncpg/sqlalchemy/redis usage in app/);
-# adding an artificial database container would add no value.
-# The declared-but-unused DB dependencies in backend/pyproject.toml are a
-# pre-existing follow-up item, not part of this configuration.
+# NOTE: a PostgreSQL service is intentionally NOT defined here. Auth persistence
+# uses SQLite via SQLAlchemy, which needs no extra container. The SQLite file
+# (default app/data/probeiq.db) lives in the container's filesystem, so a rebuilt
+# container starts with an empty auth database unless a volume is mounted or
+# PROBEIQ_DATABASE_URL points at persistent storage.
 services:
   backend:
     build: ./backend

@@ -5,8 +5,11 @@ ProbeIQ is an AI-powered technical interview agent. It interviews a candidate
 about an AI-engineering curriculum they have completed, based on the candidate's
 submitted learning data, and produces structured feedback.
 
-The submission contract is defined in `technical-spec.md`: a single
-unauthenticated `POST /api/interview` endpoint, keyed by `sessionId`.
+The submission contract is defined in `technical-spec.md`: a `POST /api/interview`
+endpoint, keyed by `sessionId`. As a deliberate, user-approved extension the
+running system additionally guards the endpoint with account authentication
+(`/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`)
+using HTTP-only session cookies; see `technical-spec.md` §Auth extension.
 
 ## High-level architecture
 - **Backend** (`backend/`): FastAPI service running the real adaptive interview
@@ -34,9 +37,10 @@ services, stores, types, constants, router, lib, utils, layouts). Verified with
 See `FRONTEND.md`.
 
 ## Backend responsibility
-Expose `POST /api/interview`, validate the request contract, maintain interview
-state per `sessionId`, run the interview (candidate analysis, topic planning,
-question generation, answer evaluation, feedback), and return responses. See
+Expose the auth endpoints and `POST /api/interview`, validate the request
+contract, maintain interview state per `sessionId` bound to the authenticated
+user, run the interview (candidate analysis, topic planning, question
+generation, answer evaluation, feedback), and return responses. See
 `BACKEND.md`. The engine is implemented and test-covered.
 
 ## Interview engine (implemented)
@@ -64,10 +68,11 @@ question generation, answer evaluation, feedback), and return responses. See
 ## Technology stack (verified)
 Backend:
 - Python >= 3.13 (declared in `backend/pyproject.toml`), FastAPI, Pydantic v2,
-  pydantic-settings (`PROBEIQ_` env prefix), langgraph, langchain-openai /
-  langchain-nvidia-ai-endpoints (LLM providers), uvicorn.
-- Tooling: pytest (174 passed, 3 skipped), ruff, mypy — all clean.
-- Declared but **not used** by app code: asyncpg, redis, sqlalchemy, httpx,
+  pydantic-settings (`PROBEIQ_` env prefix), SQLAlchemy 2.x + SQLite (auth
+  persistence), argon2-cffi (Argon2id), email-validator, langgraph,
+  langchain-openai / langchain-nvidia-ai-endpoints (LLM providers), uvicorn.
+- Tooling: pytest (180 passed, 3 skipped), ruff, mypy — all clean.
+- Declared but **not used** by app code: asyncpg, redis, httpx,
   python-dotenv. Do not treat them as part of the running system.
 
 Frontend:
@@ -84,23 +89,30 @@ Implemented:
   factory), JSON repositories, in-memory session store, deterministic
   analysis/selection/planning services, config, typed exceptions, error
   handlers, environment-configured CORS.
-- `POST /api/interview` validating the contract and running the full interview,
-  returning `{ reply, done, feedback? }`.
-- Test suite (174 tests) covering schemas, repositories, services, orchestration,
-  and the API; 3 skipped tests are live-LLM only.
-- Frontend: runnable app (landing, candidate setup, interview, feedback pages),
-  zustand store, API client/services, WebGL presence with fallbacks, reduced
-  motion. Verified build/lint and a Playwright e2e suite (22 tests).
+- Authentication: register/login/logout/me with Argon2id password hashing,
+  opaque tokens in HTTP-only session cookies, SQLite persistence via
+  SQLAlchemy (`app/models/`, `app/core/database.py`, `app/core/security.py`,
+  `app/services/auth_service.py`, `app/api/routes/auth.py`).
+- `POST /api/interview` requiring an authenticated session and returning
+  `{ reply, done, feedback? }`; started sessions are bound to the owning user
+  (cross-account access is rejected with 403).
+- Test suite (180 tests) covering schemas, repositories, services, orchestration,
+  auth, and the API; 3 skipped tests are live-LLM only.
+- Frontend: runnable app (landing, login, register, candidate setup, interview,
+  feedback pages), auth + interview zustand stores, API client/services, route
+  guards, WebGL presence with fallbacks, reduced motion. Verified build/lint
+  and a Playwright e2e suite (51 passed, 4 skipped).
 
 Planned / not yet implemented:
-- Database / Redis persistence (declared but unused). Sessions are in-memory and
-  lost on server restart.
+- Persisted interview sessions (accounts persist in SQLite, but interview
+  sessions are in-memory and lost on server restart).
+- Auth hardening: rate limiting / brute-force protection on login.
 
 ## Known limitations
-- Session state is process-local (`InMemorySessionStore`): a server restart drops
-  all sessions.
-- No authentication/authorization on the API (by design; single unauthenticated
-  endpoint).
+- Interview session state is process-local (`InMemorySessionStore`): a server
+  restart drops all interview sessions (auth accounts/sessions persist in
+  SQLite).
+- No rate limiting / lockout on auth endpoints.
 - LLM phrasing/eval is optional and not exercised by the default test suite.
 
 ## Not currently verified

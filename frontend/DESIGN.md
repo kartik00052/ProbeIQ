@@ -106,9 +106,16 @@ Depth/transform tweens use these central springs. Animate `transform` +
 - Thin pages, zustand stores, centralized Framer Motion variants in
   `src/lib/motion.ts`, `prefers-reduced-motion` respected, accessible semantics.
 - WebGL isolated in `src/components/three/`; zustand drives its state.
-- Single backend client against `POST /api/interview` (`.opencode/technical-spec.md`):
-  start `{sessionId, candidate}` / turn `{sessionId, message}` →
-  `{reply, done, feedback?}`; errors `{error, detail}` 404/409/422/500.
+- Auth: `Login`/`Register` pages, `RequireAuth` route guard,
+  `stores/authStore.ts` seeded from `GET /api/auth/me` on boot. Auth screens
+  reuse the same design language (dark base, glass console, teal accent,
+  Outfit/JetBrains Mono) — no separate visual system.
+- Backend client against the contract in `.opencode/technical-spec.md`:
+  auth endpoints (`/api/auth/register|login|logout|me`) plus
+  `POST /api/interview` start `{sessionId, candidate}` / turn
+  `{sessionId, message}` → `{reply, done, feedback?}`; errors
+  `{error, detail}` with 400/401/403/404/409/422/500. The client sends
+  `withCredentials: true` (session cookie).
 - No fabricated endpoints, responses, or interview states.
 
 ## 8. Build plan

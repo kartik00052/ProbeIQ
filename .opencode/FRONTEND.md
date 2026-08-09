@@ -10,7 +10,12 @@
 - Source tree structure: `src/` with `pages/`, `components/`, `hooks/`,
   `api/`, `services/`, `stores/`, `types/`, `constants/`, `router/`, `lib/`,
   `utils/`, `layouts/`.
-- A runnable app is scaffolded (routes, zustand store, backend client, WebGL
+- Account auth is implemented: `pages/Login/`, `pages/Register/`,
+  `components/auth/RequireAuth.tsx`, `stores/authStore.ts`, `hooks/useAuth.ts`,
+  `api/auth.ts`, `services/authService.ts`, `types/auth.ts`. The axios client
+  (`src/api/client.ts`) sends `withCredentials: true` so the HTTP-only session
+  cookie travels with every request.
+- A runnable app is scaffolded (routes, zustand stores, backend client, WebGL
   presence). Verified: `npm run build` and `npm run lint` pass in `frontend/`.
   NOTE: `src/components/three/PresenceScene.tsx` is lazy-loaded and ships as a
   large (~880 kB min) WebGL chunk; it never blocks first paint.
@@ -23,11 +28,12 @@ If the user requests frontend-only work, do NOT modify backend files.
 - Follow the existing directory conventions:
   - `pages/` — route-level screens.
   - `components/` — reusable UI; group by feature (`candidate/`, `interview/`,
-    `feedback/`, `common/`, `ui/`, `animations/`).
-  - `hooks/` — reusable logic (e.g. `useInterview`, `usePresenceState`).
+    `feedback/`, `auth/`, `common/`, `ui/`, `animations/`).
+  - `hooks/` — reusable logic (e.g. `useInterview`, `usePresenceState`,
+    `useAuth`).
   - `api/` — HTTP client and request functions.
   - `services/` — orchestration of api calls and state updates.
-  - `stores/` — client state (zustand).
+  - `stores/` — client state (zustand): `interviewStore`, `authStore`.
   - `types/` — shared TypeScript types.
 - Keep page components thin; put logic in hooks/services/stores.
 - Reuse existing components before creating new ones.
@@ -41,6 +47,14 @@ If the user requests frontend-only work, do NOT modify backend files.
   integrating an API.
 - Verify request and response schemas against the backend and
   `.opencode/technical-spec.md`.
+- Auth endpoints exist and are required: `POST /api/auth/register` (201),
+  `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` (always
+  200; `{user: null}` when logged out). `POST /api/interview` returns
+  `401 not_authenticated` without a valid session cookie and `403 forbidden`
+  when driving a session owned by another account. The client must send
+  `withCredentials: true`.
+- On boot, the app calls `GET /api/auth/me` to seed the auth store; protected
+  routes render behind `RequireAuth` (UX only — the backend enforces auth).
 - Do not create fake API responses and present them as real backend
   functionality. Clearly label temporary mocks as mocks.
 - The backend `POST /api/interview` runs a real adaptive interview engine.

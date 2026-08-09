@@ -14,17 +14,18 @@ ProbeIQ is an AI technical-interview agent: a FastAPI backend (`backend/`) that 
 
 ## Backend (verified working)
 - Work from `backend/`: `uv sync --locked`, then `uv run uvicorn app.main:app --reload`.
-- Verification (all from `backend/`, currently clean): `uv run pytest` → 174 passed, 3 skipped; `uv run ruff check app tests`; `uv run mypy app tests`.
+- Verification (all from `backend/`, currently clean): `uv run pytest` → 180 passed, 3 skipped; `uv run ruff check app tests`; `uv run mypy app tests`.
 - `tests/conftest.py` forces `PROBEIQ_LLM_ENABLED=false`; the 3 skipped tests are live-LLM and only run with `PROBEIQ_LIVE_LLM_TEST=true`.
 - Config: pydantic-settings with `PROBEIQ_` prefix (`backend/app/core/config.py`). Copy `backend/.env.example` → `backend/.env` to enable the optional NVIDIA GLM path. Never read or commit `backend/.env` (git-ignored, may hold an API key).
 - The interview engine is implemented: LangGraph graph (`app/orchestration/graph.py`) + heuristic question generator/evaluator runs fully offline by default; `app/llm/factory.py` adds optional LLM phrasing/eval (providers `openai` / `openai-compatible` / `nvidia`).
-- No database. `InMemorySessionStore` is process-local — a server restart drops all sessions. Do not invent DB/Redis models.
+- Accounts: register/login/logout/me with Argon2id hashing and HTTP-only session cookies, persisted in SQLite via SQLAlchemy (`app/core/database.py`, `app/models/`, `app/core/security.py`, `app/services/auth_service.py`, `app/api/routes/auth.py`). Do not invent further DB/Redis models.
+- Interview sessions: `InMemorySessionStore` is process-local — a server restart drops all interview sessions (auth accounts/sessions survive in SQLite). Do not invent Redis or other persistence for interview sessions without an explicit request.
 - Docker: `docker build -t probeiq-backend ./backend`; from repo root `docker compose up -d` (port 8000) / `docker compose down` (never `down -v`). No postgres service, intentionally.
-- API: exactly one endpoint `POST /api/interview`, keyed by `sessionId`. Start = `{sessionId, candidate}`, turn = `{sessionId, message}`; response `{reply, done, feedback?}` (feedback present when done). Errors are `{error, detail}` with 400/404/409/422/500. Do not invent endpoints.
-- CORS: configured via `PROBEIQ_CORS_ALLOWED_ORIGINS` (dev default `http://localhost:5173`); an empty value disables the middleware.
+- API: `POST /api/interview`, keyed by `sessionId`, **requires an authenticated session cookie** (401 `not_authenticated`); a started session is bound to its owner (403 `forbidden` on cross-account access). Auth: `POST /api/auth/register` (201) / `/login` / `/logout`, `GET /api/auth/me` (always 200, `{user: null}` when logged out). Start = `{sessionId, candidate}`, turn = `{sessionId, message}`; response `{reply, done, feedback?}` (feedback present when done). Errors are `{error, detail}` with 400/401/403/404/409/422/500. Do not invent endpoints.
+- CORS: configured via `PROBEIQ_CORS_ALLOWED_ORIGINS` (dev default `http://localhost:5173`); credentials are enabled (session cookie), so never use a wildcard; an empty value disables the middleware.
 
 ## Frontend (verified working)
-- Run from `frontend/`: `npm run dev` (Vite proxy forwards `/api` → `http://localhost:8000`), `npm run build`, `npm run lint`. Playwright e2e in `frontend/e2e/` (`npm run test:e2e`) starts its own backend on :8001 + Vite on :5174; 22 tests currently pass.
+- Run from `frontend/`: `npm run dev` (Vite proxy forwards `/api` → `http://localhost:8000`), `npm run build`, `npm run lint`. Playwright e2e in `frontend/e2e/` (`npm run test:e2e`) starts its own backend on :8001 + Vite on :5174; currently 51 passed, 4 skipped.
 - Integrate only against the contract above; backend is the source of truth. Don't fabricate endpoints, responses, or interview states.
 - Follow `.opencode/FRONTEND.md` conventions: thin pages, zustand stores, centralized framer-motion variants (`src/lib/motion.ts`), `prefers-reduced-motion`, accessible semantics.
 

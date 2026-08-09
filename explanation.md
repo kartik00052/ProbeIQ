@@ -1,5 +1,32 @@
 # ProbeIQ — Backend Explanation & Current State
 
+> **Addendum (2026-08-09, commit `b9a711a` "feat(auth)…").** The snapshot below
+> predates authentication. Current state at a glance:
+>
+> - **New endpoints** (user-approved extension to `technical-spec.md`):
+>   `POST /api/auth/register` (201), `POST /api/auth/login`,
+>   `POST /api/auth/logout`, `GET /api/auth/me`. `POST /api/interview` now
+>   **requires** an authenticated session (401 `not_authenticated`; 403
+>   `forbidden` when driving another account's session).
+> - **Auth stack:** Argon2id hashing (`app/core/security.py`), opaque
+>   `secrets.token_urlsafe(48)` tokens, HTTP-only `probeiq_session` cookie
+>   (SameSite=Lax, Secure in production, 14-day TTL), server-side rows in
+>   `app/models/` (`User`, `AuthSession`) persisted in **SQLite via SQLAlchemy**
+>   (`app/core/database.py`; default `app/data/probeiq.db`). CORS now allows
+>   credentials to explicit origins only.
+> - **Ownership:** every interview session is bound to the owning user
+>   (`owner_user_id`) and enforced server-side via `get_current_user`
+>   (`app/api/dependencies.py`).
+> - **Config:** `PROBEIQ_DATABASE_URL`, `PROBEIQ_AUTH_COOKIE_NAME`,
+>   `PROBEIQ_AUTH_SESSION_TTL_DAYS` added.
+> - **Verification:** `uv run pytest` → **180 passed, 3 skipped**; ruff clean;
+>   mypy clean in **89** source files; frontend Playwright suite → **51 passed,
+>   4 skipped**. The 3 live-LLM tests remain opt-in.
+>
+> Sections 3 (structure), 4 (API contract), 8 (session store & data), 9 (uv),
+> and 14 (security) below describe the pre-auth state and are superseded by the
+> above where they conflict.
+
 This document explains the current state of the ProbeIQ backend: what it does,
 how it is structured, how the interview workflow operates, how it is run, and
 what is still open. Everything below reflects the actual codebase at commit

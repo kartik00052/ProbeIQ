@@ -20,7 +20,7 @@ A 31-day AI-cohort curriculum produces different learners. Generic questionnaire
 | **Why** | Candidates finish *different* topics with *different* strengths — one fixed questionnaire cannot reflect that |
 | **Who** | AI-cohort graduates, technical interviewers, hiring teams, hackathon judges |
 | **How** | A deterministic, inspectable engine decides **what** to probe; an optional LLM decides **how** to phrase it and **how** to judge an answer |
-| **Interface** | Text. One HTTP endpoint, `POST /api/interview`, keyed by `sessionId`. No authentication (per specification). Voice interaction is explicitly **out of scope** |
+| **Interface** | Text. An authenticated JSON API — `POST /api/auth/register \| /login \| /logout` plus `POST /api/interview` keyed by `sessionId`. Voice interaction is explicitly **out of scope** |
 
 > **Two engines, one controller.** With no API key configured, ProbeIQ runs **fully offline** on deterministic question templates, heuristic answer evaluation, and rule-based feedback. When `PROBEIQ_LLM_ENABLED=true` with a key, an LLM (NVIDIA GLM 5.2 by default) elevates the phrasing and judgment — while the deterministic controller keeps deciding **what to ask next**. This separation is the core design of the project.
 
@@ -115,7 +115,7 @@ Legend — ✅ Implemented · 🟡 Partial · 🔵 Planned / out of scope
 | Personalized interviews | ✅ | Every interview is planned from the candidate's learning data | `app/services/candidate_service.py`, `profile_service.py`, `topic_planner.py` |
 | Curriculum-aware questioning | ✅ | Questions grounded in a specific day's objectives and tools | `app/orchestration/nodes/generate_question.py` |
 | Candidate-aware questioning | ✅ | Role, experience, and topic evidence shape questions | `QuestionContext`, prompts in `app/prompts/` |
-| Multi-turn conversation | ✅ | Sessions persist across requests via `sessionId` | `InMemorySessionStore`, `app/services/session_service.py` |
+| Multi-turn conversation | ✅ | Sessions persist across requests via `sessionId` and are bound to the owning account | `InMemorySessionStore`, `app/services/session_service.py` |
 | Adaptive follow-ups | ✅ | Follow-up targets the probe focus the evaluation recommends | `recommended_probe()` in `app/orchestration/decision.py` |
 | Minimum question enforcement | ✅ | Completes only at ≥ 8 questions **and** ≥ 4 covered days | `min_questions`, `min_covered_days` in `app/core/config.py` |
 | Hard safety cap | ✅ | Forced completion at 16 questions | `hard_max_questions` |
@@ -124,11 +124,13 @@ Legend — ✅ Implemented · 🟡 Partial · 🔵 Planned / out of scope
 | Structured LLM output | ✅ | Output validated by Pydantic + grounded against the curriculum | `app/agents/*`, `invoke_json()` |
 | Failure safety / retry | ✅ | Failed turns mutate nothing; safe to retry | Store written only after a successful graph run |
 | Feedback generation | ✅ | `summary / strengths / gaps / next` from real evaluations | `app/agents/feedback_agent.py` |
-| HTTP API | ✅ | Single `POST /api/interview` per spec | `backend/app/api/routes/interview.py` |
-| Frontend interview app | ✅ | Landing → setup → interview → feedback | `frontend/src/` (React/Vite) |
+| HTTP API | ✅ | `POST /api/interview` per spec, plus the auth endpoints | `backend/app/api/routes/interview.py`, `backend/app/api/routes/auth.py` |
+| Authentication | ✅ | Email/password accounts; Argon2id hashing; opaque session tokens | `app/api/routes/auth.py`, `app/core/security.py`, `app/services/auth_service.py` |
+| Session-based access | ✅ | HTTP-only `probeiq_session` cookie; every interview session is bound to the account that started it (403 on cross-user access) | `get_current_user` in `app/api/dependencies.py` |
+| Account persistence | ✅ | Users + auth sessions persist in SQLite (SQLAlchemy) and survive restarts | `app/models/`, `app/core/database.py` |
+| Frontend interview app | ✅ | Login/register → landing → setup → interview → feedback | `frontend/src/` (React/Vite) |
 | LLM-backed phrasing & judgment | 🟡 | Implemented, **off by default**; live inference unverified from the author machine (see [AI / LLM](#ai--llm)) | `app/llm/factory.py` |
-| Persistence across restarts | 🔵 | Sessions are in-memory and process-local by design | — |
-| Authentication / accounts | 🔵 | Explicitly out of scope per `technical-spec.md` | — |
+| Interview-session persistence across restarts | 🔵 | Auth state persists in SQLite; interview sessions are in-memory and process-local by design | — |
 | Voice interaction | 🔵 | Explicitly out of scope per the challenge specification | — |
 | Observability / tracing | 🔵 | Planned; no app-level logging today (see [Limitations](#limitations)) | — |
 
@@ -261,7 +263,10 @@ A sample roster of 20 candidates with distinct learning profiles ships in `backe
 ```mermaid
 flowchart TD
     User[Candidate] --> FE[React frontend<br/>Observatory console]
-    FE -- POST /api/interview<br/>JSON --> API[FastAPI<br/>app.main:app]
+    FE -- POST /api/auth/register · /login<br/>email + password --> AUTH[AuthService]
+    AUTH --> AUTHDB[(SQLite<br/>users + auth sessions)]
+    AUTH -- HTTP-only session cookie --> FE
+    FE -- POST /api/interview<br/>session cookie + JSON --> API[FastAPI<br/>app.main:app]
     API --> SS[SessionService]
     SS --> G[LangGraph state machine<br/>6 typed nodes, no checkpointer]
     G --> CR[CandidateRepository] --> CD[candidates.json]
@@ -282,8 +287,12 @@ Verified layer-by-layer:
 
 | Layer | Location | Role |
 |---|---|---|
-| API | `backend/app/api/routes/interview.py` | The single endpoint, request/response shaping |
-| Composition root | `backend/app/api/dependencies.py` | Service + LLM wiring |
+| API | `backend/app/api/routes/interview.py` | The interview endpoint, request/response shaping |
+| Auth API | `backend/app/api/routes/auth.py` | Register / login / logout / me + session cookie handling |
+| Auth core | `backend/app/core/security.py`, `core/database.py` | Argon2id hashing, token generation, SQLAlchemy engine/session wiring |
+| Auth service | `backend/app/services/auth_service.py` | Registration, verification, session lifecycle |
+| Auth persistence | `backend/app/models/`, `backend/app/repositories/` | `User` / `AuthSession` ORM models + repositories (SQLite) |
+| Composition root | `backend/app/api/dependencies.py` | Service + LLM wiring + `get_current_user` gate |
 | Services | `backend/app/services/` | Deterministic analysis, planning, strategy |
 | Orchestration | `backend/app/orchestration/` | LangGraph nodes + decision rules |
 | Agents | `backend/app/agents/` | Question / evaluation / feedback generators |
@@ -365,7 +374,10 @@ The frontend is a real, runnable React application ("**The Observatory 3D**", sp
 ```mermaid
 stateDiagram-v2
     [*] --> Landing: /
-    Landing --> Setup: Begin interview
+    Landing --> Register: Create account
+    Landing --> Login: Sign in
+    Register --> Setup: account created (auto-login)
+    Login --> Setup: authenticated
     Setup --> Interview: valid candidate profile
     Interview --> Interview: turn cycle (Q → thinking → answer → Q)
     Interview --> Feedback: done = true
@@ -375,12 +387,16 @@ stateDiagram-v2
 
 | Route | Screen |
 |---|---|
-| `/` | **Landing** — what the interviewer is, one CTA |
+| `/` | **Landing** — what the interviewer is, CTAs to sign in or create an account |
+| `/login` | **Login** — email + password; errors inline |
+| `/register` | **Register** — create an account (auto-login), password ≥ 8 chars |
 | `/setup` | **Candidate setup** — paste the candidate JSON profile (sample pre-filled), validated client-side |
 | `/interview` | **Interview** — question card, transcript, answer composer, curriculum progress, timer, thinking state |
 | `/complete` | **Feedback** — the post-interview debrief |
 
-Key behaviors verified by the 22-test Playwright suite:
+All protected routes sit behind `RequireAuth` (`frontend/src/components/auth/RequireAuth.tsx`): an unauthenticated visitor is redirected to `/login`, and after logout the auth state resets. Route guards are UX only — the backend enforces authentication on every interview request.
+
+Key behaviors verified by the 51-test Playwright suite:
 
 - Question cards announce via `aria-live`; the thinking state is exposed as a `role="status"` region and disables the composer.
 - Failed answer submissions **roll back the transcript** and keep the text in the composer for a one-click retry.
@@ -388,7 +404,7 @@ Key behaviors verified by the 22-test Playwright suite:
 - The WebGL presence degrades gracefully: no-WebGL and low-power devices get a static poster; `prefers-reduced-motion` flattens all motion.
 - No horizontal overflow from 375 px to 1440 px.
 
-State lives in a single zustand store (`src/stores/interviewStore.ts`) driving `idle → thinking → active → complete`; pages stay thin and delegate to hooks/services. The backend is reached through one axios client against `POST /api/interview` (`src/api/client.ts`) with a Vite dev proxy (`/api` → `http://localhost:8000`, configurable via `PROBEIQ_API_TARGET`).
+State lives in two zustand stores: `src/stores/authStore.ts` (account, session bootstrapping via `GET /api/auth/me`, login/register/logout) and `src/stores/interviewStore.ts` (driving `idle → thinking → active → complete`); pages stay thin and delegate to hooks/services. The backend is reached through one axios client (`src/api/client.ts`) configured with `withCredentials: true` so the session cookie is sent, against `POST /api/interview` and the auth endpoints, with a Vite dev proxy (`/api` → `http://localhost:8000`, configurable via `PROBEIQ_API_TARGET`).
 
 ### Design & motion system
 
@@ -410,9 +426,29 @@ On "Begin interview" the 3D core **recedes** (scale/opacity/depth) so the 2D con
 
 ## API
 
-The complete contract is defined in `.opencode/technical-spec.md`. There is exactly **one** endpoint.
+The complete contract is defined in `.opencode/technical-spec.md`. The interview endpoint follows the spec; authentication is a deliberate extension (implemented per user request) that guards it with a session cookie.
 
-### `POST /api/interview`
+### `POST /api/auth/register` · `POST /api/auth/login`
+
+Register a new account (201) or verify credentials (200). Both accept `{ "email": "...", "password": "..." }` (password ≥ 8 chars on register, enforced via `422 invalid_request`) and respond with the user plus an **HTTP-only session cookie** (`probeiq_session`, `SameSite=Lax`, `Secure` in production, 14-day TTL):
+
+```json
+{ "id": "4b…uuid…", "email": "candidate@example.com" }
+```
+
+Errors: `401 invalid_credentials` (bad login — single generic message, never reveals whether the account exists), `409 account_already_exists` (duplicate register email).
+
+### `POST /api/auth/logout`
+
+Revokes the session server-side and clears the cookie. Returns `{ "detail": "logged out" }`.
+
+### `GET /api/auth/me`
+
+Resolves the current session. Always 200: `{ "user": {id, email} }` when authenticated, `{ "user": null }` when not. The frontend calls this on boot to seed the auth store.
+
+### `POST /api/interview` (authenticated)
+
+Requires a valid `probeiq_session` cookie — otherwise `401 not_authenticated`. A started session is bound to the authenticated user; driving a session started by a different account returns `403 forbidden`.
 
 | Use | Request body |
 |---|---|
@@ -520,10 +556,14 @@ Errors are always `{ "error": code, "detail": message }`, produced by a typed ex
 |---|---|---|
 | 400 | `invalid_request` | Empty or whitespace-only `message` on a turn |
 | 400 | `session_completed` | Sending a turn to a finished session |
+| 401 | `not_authenticated` | Missing/invalid/expired session cookie on `POST /api/interview` |
+| 401 | `invalid_credentials` | Wrong email or password on login (single generic message) |
+| 403 | `forbidden` | Driving an interview session started by a different account |
 | 404 | `session_not_found` | Unknown `sessionId` |
 | 404 | `candidate_not_found` / `day_not_found` | Data reference not found |
 | 409 | `session_already_exists` | Re-using a `sessionId` to start |
-| 422 | `invalid_request` | Schema validation failure — missing `sessionId`, wrong types, both/neither of `candidate`/`message`, or a malformed candidate payload |
+| 409 | `account_already_exists` | Registering with an email that already has an account |
+| 422 | `invalid_request` | Schema validation failure — missing `sessionId`, wrong types, both/neither of `candidate`/`message`, a malformed candidate payload, or a register password shorter than 8 chars |
 | 500 | `interview_engine_error` | LLM failure, malformed LLM output, empty topic plan |
 | 500 | `data_load_error` | Candidate/curriculum JSON failed to load |
 | 500 | `llm_configuration_error` | LLM enabled but misconfigured (missing key/model) |
@@ -559,12 +599,15 @@ Errors are always `{ "error": code, "detail": message }`, produced by a typed ex
 | Python 3.13 | Runtime |
 | FastAPI + uvicorn | HTTP API |
 | Pydantic v2 + pydantic-settings | Validation + `PROBEIQ_` env config |
+| SQLAlchemy 2.x + SQLite | Auth persistence (users + sessions) |
+| argon2-cffi | Argon2id password hashing |
+| email-validator | `EmailStr` validation on auth schemas |
 | LangGraph | Typed interview state machine |
 | LangChain | Chat-model integration (`ChatNVIDIA`, `ChatOpenAI`) |
 | httpx | HTTP client stack |
 | JSON data files | Curriculum + candidate roster |
 
-**Data:** `InMemorySessionStore` (process-local, mutex-protected). No database is used. `asyncpg`, `sqlalchemy`, and `redis` are declared in `pyproject.toml` but are **unused placeholders** — do not treat them as part of the running system.
+**Data:** auth accounts and sessions persist in **SQLite** via SQLAlchemy (default file `app/data/probeiq.db`, overridable via `PROBEIQ_DATABASE_URL`). Interview sessions remain in `InMemorySessionStore` (process-local, mutex-protected). `asyncpg` and `redis` are declared in `pyproject.toml` but are **unused placeholders** — do not treat them as part of the running system.
 
 ### Development tooling
 
@@ -594,7 +637,7 @@ ProbeIQ is built with an AI-coding workflow whose guardrails are part of the rep
 | **Design / UX skills** | `ui-ux-pro-max` | UI/UX design intelligence with a searchable database (typography, color, layout, motion) |
 | **Design / UX skills** | `impeccable` | UX critique, audit, polish, and motion guidance |
 | **Design / UX skills** | `design-taste-frontend`, `high-end-visual-design`, etc. | Visual-quality direction (available in `.agents/skills/`) |
-| **Project instruction files** | `.opencode/PROJECT.md`, `AGENT.md`, `BACKEND.md`, `FRONTEND.md`, `RULES.md`, `GIT.md`, `technical-spec.md` | Project-specific constraints: single-endpoint contract, no hallucination, no invented features, safe Git rules |
+| **Project instruction files** | `.opencode/PROJECT.md`, `AGENT.md`, `BACKEND.md`, `FRONTEND.md`, `RULES.md`, `GIT.md`, `technical-spec.md` | Project-specific constraints: API contract, no hallucination, no invented features, safe Git rules |
 | **Design spec** | `frontend/DESIGN.md` | The locked "Observatory 3D" design decisions |
 
 The workflow the agents follow: **inspect → plan → implement → test → review → show the diff → commit only when asked**. The frontend's design system was derived through the `ui-ux-pro-max` and `impeccable` skills, then locked in `DESIGN.md`; the backend's anti-hallucination rules (`AGENT.md`, `RULES.md`) are what keep every claim in this README verifiable.
@@ -607,14 +650,14 @@ All results below were **run and verified at the time of this README revision** 
 
 | Check | Command (from `backend/` unless noted) | Result |
 |---|---|---|
-| Backend tests | `uv run pytest` | **174 passed, 3 skipped** (~5 s). The 3 skips are opt-in live-LLM tests (`PROBEIQ_LIVE_LLM_TEST=true`) that keep the default suite fully offline and deterministic. |
+| Backend tests | `uv run pytest` | **180 passed, 3 skipped** (~5.5 s). The 3 skips are opt-in live-LLM tests (`PROBEIQ_LIVE_LLM_TEST=true`) that keep the default suite fully offline and deterministic. |
 | Lint | `uv run ruff check app tests` | Clean |
-| Types | `uv run mypy app tests` | Clean — 79 source files |
+| Types | `uv run mypy app tests` | Clean — 89 source files |
 | Frontend build | `npm run build` (from `frontend/`) | Clean |
 | Frontend lint | `npm run lint` (from `frontend/`) | Clean |
-| Frontend e2e | `npm run test:e2e` (from `frontend/`) | **22 passed** — full interview loop, completion + report, error rollback/retry, accessibility, reduced motion, responsive overflow, WebGL fallbacks |
+| Frontend e2e | `npm run test:e2e` (from `frontend/`) | **51 passed, 4 skipped** — full interview loop, completion + report, error rollback/retry, accessibility, reduced motion, responsive overflow, WebGL fallbacks, plus account register/login/logout and protected-route guards |
 
-**What the backend suite covers** (20 test files under `backend/tests/`): candidate/curriculum schemas and repositories, deterministic analysis and profile services, topic planning and strategy, question generation, the evaluation and feedback engines, the LangGraph adaptive engine (decision sequences, minimums, hard cap), session store concurrency, the LLM factory, and the API contract (start/turn/completion, all error codes).
+**What the backend suite covers** (20 test files under `backend/tests/`): candidate/curriculum schemas and repositories, deterministic analysis and profile services, topic planning and strategy, question generation, the evaluation and feedback engines, the LangGraph adaptive engine (decision sequences, minimums, hard cap), session store concurrency, the LLM factory, auth (register/login/logout/me, duplicate account, wrong password, ownership enforcement), and the API contract (start/turn/completion, all error codes).
 
 `backend/audit_verify.py` is a deterministic audit driver runnable independently of pytest; the Phase 15 report in `backend/AUDIT_REPORT.md` records **30 PASS / 2 WARN / 0 FAIL** across its deterministic checks.
 
@@ -625,8 +668,10 @@ All results below were **run and verified at the time of this README revision** 
 - **Secrets:** the API key is a `SecretStr`; it is never logged, never printed, and never included in error messages. `backend/.env` is git-ignored; `.env.example` ships placeholders only.
 - **Docker:** `.dockerignore` excludes `.env` and caches, so the key never enters the image. `docker-compose.yml` loads `backend/.env` as an *optional* `env_file`.
 - **Validation:** every request is validated by Pydantic; global exception handlers sanitize 500 responses (no stack traces).
-- **CORS:** explicit, environment-configured origins (`PROBEIQ_CORS_ALLOWED_ORIGINS`), no wildcard, credentials disabled (the API carries no cookies/auth headers).
-- **Auth:** not applicable — the specification requires an unauthenticated endpoint.
+- **CORS:** explicit, environment-configured origins (`PROBEIQ_CORS_ALLOWED_ORIGINS`), no wildcard. Credentials are enabled because the API authenticates via an HTTP-only session cookie, so origins must stay explicit; an empty value disables the middleware.
+- **Passwords:** Argon2id via `argon2-cffi` (`app/core/security.py`); login failures return one generic message so callers cannot distinguish "unknown email" from "wrong password".
+- **Sessions:** opaque, cryptographically random tokens (`secrets.token_urlsafe(48)`) stored server-side in SQLite until logout or expiry, delivered as an HTTP-only `SameSite=Lax` cookie (`Secure` in production). Logout revokes the row immediately.
+- **Ownership:** every interview session is bound to the authenticated user; cross-account access to a session is rejected server-side (`403 forbidden`). Frontend route guards are UX only.
 - **Known limitation:** `DataLoadError` currently surfaces absolute filesystem paths in its 500 `detail` (open audit finding P1-2); treat data-load errors as diagnostic information, not as a feature.
 
 > ⚠️ **Never commit `backend/.env`.** It may hold a live NVIDIA/OpenAI API key. If a key is ever printed to a terminal or a PR, rotate it immediately.
@@ -639,7 +684,7 @@ The backend is fully containerized; the frontend runs via Vite/Node (a frontend 
 
 - `backend/Dockerfile` — `python:3.13-slim`, `uv 0.11.21`, production deps only (dev group excluded), runs `uvicorn app.main:app --host 0.0.0.0 --port 8000`.
 - `backend/.dockerignore` — keeps `.env`, `.venv`, caches, and tests out of the image.
-- `docker-compose.yml` (repo root) — a single `backend` service on port `8000`, optional `env_file: ./backend/.env`. No PostgreSQL service: the app does not use a database, so none is defined.
+- `docker-compose.yml` (repo root) — a single `backend` service on port `8000`, optional `env_file: ./backend/.env`. No PostgreSQL service: auth persistence is SQLite, which needs no extra container. The SQLite file lives in the container's filesystem (default `app/data/probeiq.db`), so a *rebuilt* container starts with an empty auth database unless you mount a volume or point `PROBEIQ_DATABASE_URL` at persistent storage.
 
 ```bash
 docker build -t probeiq-backend ./backend
@@ -677,6 +722,8 @@ npm run dev                 # http://localhost:5173, /api proxied to :8000
 
 The Vite proxy target is configurable: `PROBEIQ_API_TARGET=http://localhost:8000 npm run dev`.
 
+Open `http://localhost:5173`, **create an account** (or log in), then run an interview. All protected screens redirect to `/login` until you're authenticated. If you hit the API directly, you must first `POST /api/auth/register` (or `/login`) and keep the resulting `probeiq_session` cookie for `POST /api/interview` (e.g. `curl -c cookies.txt -b cookies.txt`).
+
 ### Verify
 
 ```bash
@@ -700,8 +747,11 @@ All backend settings come from environment variables with the `PROBEIQ_` prefix,
 | Variable | Default | Purpose |
 |---|---|---|
 | `PROBEIQ_DATA_DIR` | `app/data` | Directory with `curriculum.json` / `candidates.json` |
-| `PROBEIQ_ENVIRONMENT` | `development` | Runtime environment label |
-| `PROBEIQ_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Allowed browser origins (no wildcard) |
+| `PROBEIQ_ENVIRONMENT` | `development` | Runtime environment label (`production` also sets the session cookie `Secure` flag) |
+| `PROBEIQ_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Allowed browser origins (no wildcard; credentials enabled) |
+| `PROBEIQ_DATABASE_URL` | *(empty)* | SQLAlchemy URL for auth persistence; default `sqlite:///app/data/probeiq.db` (relative to `backend/`). Never commit real credentials in it |
+| `PROBEIQ_AUTH_COOKIE_NAME` | `probeiq_session` | HTTP-only session cookie name |
+| `PROBEIQ_AUTH_SESSION_TTL_DAYS` | `14` | Session token lifetime |
 | `PROBEIQ_MIN_QUESTIONS` | `8` | Minimum questions before completion |
 | `PROBEIQ_MIN_COVERED_DAYS` | `4` | Minimum distinct curriculum days covered |
 | `PROBEIQ_MAX_QUESTIONS_PER_TOPIC` | `3` | Topic saturation cap |
@@ -729,31 +779,32 @@ All backend settings come from environment variables with the `PROBEIQ_` prefix,
 ProbeIQ/
 ├── backend/                       # FastAPI + LangGraph interview engine
 │   ├── app/
-│   │   ├── api/                   #   the single POST /api/interview route + wiring
+│   │   ├── api/                   #   routes (auth + POST /api/interview) + wiring
 │   │   ├── agents/                #   question / evaluation / feedback generators
-│   │   ├── core/                  #   config (PROBEIQ_), exceptions, app factory
-│   │   ├── data/                  #   curriculum.json, candidates.json
+│   │   ├── core/                  #   config (PROBEIQ_), exceptions, security, database, app factory
+│   │   ├── data/                  #   curriculum.json, candidates.json, probeiq.db (auth)
 │   │   ├── llm/                   #   chat-model factory (ChatNVIDIA / ChatOpenAI)
+│   │   ├── models/                #   SQLAlchemy models (User, AuthSession)
 │   │   ├── orchestration/         #   LangGraph graph, nodes, decision rules
 │   │   ├── prompts/               #   LLM prompt builders
-│   │   ├── repositories/          #   JSON data access + in-memory session store
-│   │   ├── schemas/               #   Pydantic models (candidate, session, evaluation…)
-│   │   └── services/              #   deterministic analysis / planning / strategy
-│   ├── tests/                     #   20 files · 174 passed · 3 skipped
+│   │   ├── repositories/          #   JSON data access + in-memory session store + auth repos
+│   │   ├── schemas/               #   Pydantic models (candidate, session, evaluation, auth…)
+│   │   └── services/              #   deterministic analysis / planning / strategy / auth
+│   ├── tests/                     #   20 files · 180 passed · 3 skipped
 │   ├── pyproject.toml             #   deps + dev group + pytest config
 │   ├── uv.lock                    #   locked environment
 │   ├── .env.example               #   documented env vars (placeholders only)
 │   ├── Dockerfile / .dockerignore
-│   ├── AUDIT_REPORT.md            #   Phase 15 backend audit
+│   ├── AUDIT_REPORT.md            #   Phase 15 backend audit (+ auth addendum)
 │   └── audit_verify.py            #   deterministic audit driver (30 checks)
 ├── frontend/                      # React 19 + Vite 8 + TS + Tailwind v4
 │   ├── src/
-│   │   ├── pages/                 #   Landing · CandidateSetup · Interview · Feedback
-│   │   ├── components/            #   interview/, feedback/, candidate/, three/, ui/, …
+│   │   ├── pages/                 #   Landing · Login · Register · CandidateSetup · Interview · Feedback
+│   │   ├── components/            #   interview/, feedback/, candidate/, three/, ui/, auth/
 │   │   ├── hooks/ services/ stores/ api/ types/ constants/
 │   │   ├── router/ lib/ utils/ layouts/
 │   │   └── index.css              #   design tokens
-│   ├── e2e/                       #   Playwright suite (22 tests)
+│   ├── e2e/                       #   Playwright suite (51 passed · 4 skipped)
 │   ├── public/                    #   favicon, icons
 │   ├── DESIGN.md                  #   locked "Observatory 3D" design spec
 │   ├── index.html / vite.config.ts / playwright.config.ts / tsconfigs / eslint.config.js
@@ -776,14 +827,16 @@ Where a decision is an architectural rationale inferred from the implementation 
 
 | Decision | Why | Trade-off |
 |---|---|---|
-| **FastAPI + Pydantic v2** | Typed request/response contracts, validation at the boundary, OpenAPI for free, easy to test | Synchronous engine turns; async/DB stack not exercised |
+| **FastAPI + Pydantic v2** | Typed request/response contracts, validation at the boundary, OpenAPI for free, easy to test | Synchronous engine turns; sync SQLAlchemy/SQLite exercised (auth), async/redis stack still unused |
 | **uv** | Fast, locked, reproducible installs (`uv.lock`); single tool for deps + venv | Ecosystem is newer than pipenv/poetry |
 | **Deterministic engine in front of an optional LLM** | The interview's *decisions* are inspectable, testable, and replayable; the LLM only adds phrasing/judgment. Anti-hallucination by construction. | LLM quality ceiling is limited to what the controller asks |
 | **LangGraph state machine** | Explicit typed state, one HTTP request per invocation, no hidden globals, retry-safe | No checkpointer — state must be re-fed each turn |
-| **In-memory session store** | Correct for a hackathon/single-process deployment; zero infra | No persistence across restarts; not horizontally scalable (declared DB deps are a planned follow-up) |
+| **In-memory interview session store** | Correct for a hackathon/single-process deployment; zero infra; auth state separately persisted in SQLite | Interview sessions do not survive restarts and are not horizontally scalable |
+| **SQLite + SQLAlchemy for auth** | Accounts and sessions need durable, restart-safe storage with zero operational overhead; SQLAlchemy keeps a path open to Postgres later | SQLite is single-writer; a separate Postgres would be needed at scale |
+| **Cookie-session authentication** | HTTP-only cookie keeps the token out of JS; server-side sessions (opaque tokens) can be revoked immediately on logout | No cross-device bearer tokens; requires explicit CORS origins with credentials |
 | **JSON curriculum + candidate data** | Data is versionable, readable, and trivially swappable | Not a queryable database; candidates must be passed in the request |
 | **LLM output validated + cross-checked** | A malformed or ungrounded LLM response can never corrupt a session or fabricate content | Slightly more code; occasional retries on invalid output |
-| **Single endpoint** | Mandated by `technical-spec.md`; keeps the contract tiny | No REST-style resource granularity |
+| **Single interview endpoint + auth extension** | `POST /api/interview` is mandated by `technical-spec.md`; authentication was added as a deliberate, user-approved extension guarding it | The base spec's unauthenticated contract is intentionally no longer exposed |
 | **React 19 + Vite + TS + Tailwind v4** | Fast tooling, typed frontend, token-driven styling | Heavier toolchain than a minimal scaffold |
 | **WebGL presence, lazy-loaded, reduced-motion-aware** | A calm "interviewer presence" without hurting first paint or accessibility | Extra ~880 kB WebGL chunk (ships in a lazy route) |
 | **Centralized spring system (`src/lib/motion.ts`)** | Consistent motion values, easy global tuning | One more indirection layer |
@@ -794,9 +847,10 @@ Where a decision is an architectural rationale inferred from the implementation 
 
 Honest boundaries of the current implementation:
 
-- **No authentication, no accounts, no voice.** Explicitly out of scope in the specification. Interaction is text-only.
-- **Sessions are in-memory and process-local.** A server restart drops all sessions. Not intended for multi-process or production traffic yet.
-- **No database.** `asyncpg` / `sqlalchemy` / `redis` are declared in `pyproject.toml` but unused placeholders.
+- **Interview sessions are in-memory and process-local.** Auth state persists in SQLite, but a server restart drops all interview sessions and their transcripts. Not intended for multi-process or production traffic yet.
+- **No rate limiting / lockout on auth endpoints.** Login/register are not throttled; brute-force protection (rate limiting, account lockout) is not implemented.
+- **Session-token brute force is bounded only by token entropy** (48 random bytes); no per-IP throttling layer exists.
+- **SQLite is single-writer.** `asyncpg` / `redis` remain unused placeholders; a Postgres migration is a follow-up.
 - **LLM live path unverified from the authoring machine** (network-level gateway timeouts; see [AI / LLM](#ai--llm)). The offline path is the verified default.
 - **No observability/tracing** in application code (open audit finding); the backend logs nothing today.
 - **`DataLoadError` leaks absolute paths** in 500 responses (open audit finding P1-2).
@@ -813,17 +867,19 @@ Honest boundaries of the current implementation:
 - Deterministic adaptive interview engine (plan → question → evaluate → decide → feedback)
 - Offline template question generation + heuristic evaluation
 - Optional NVIDIA GLM 5.2 (and OpenAI-compatible) LLM path with grounded structured output
-- React "Observatory 3D" frontend with feedback, retry, accessibility, and reduced-motion support
-- Docker + Compose for the backend; CORS configured
-- 174 backend tests, 22 e2e tests, ruff/mypy clean
+- Account authentication: register/login/logout with Argon2id, HTTP-only session cookies, SQLite persistence, interview ownership
+- React "Observatory 3D" frontend with login/register, feedback, retry, accessibility, and reduced-motion support
+- Docker + Compose for the backend; CORS with credentials configured
+- 180 backend tests, 51 e2e tests, ruff/mypy clean
 
 **Planned (direction indicated by the codebase, not yet implemented)**
 
 - Live NVIDIA inference verification on a network-valid machine (end-to-end)
 - Observability: structured logging, per-node timing (open audit P2-4)
 - Sanitize `DataLoadError` paths (open audit P1-2)
+- Auth hardening: rate limiting / brute-force protection on login
+- Persisted, restart-safe interview sessions (Postgres migration path exists via SQLAlchemy)
 - Frontend topic-transition choreography — the extension point exists (`InterviewHeader` `topic` prop) and awaits reliable topic metadata from the backend
-- Wire the declared DB stack (`asyncpg` / `sqlalchemy` / `redis`) for persisted sessions — audit P14 keeps it a future extension
 
 **Future (ideas consistent with project direction)**
 

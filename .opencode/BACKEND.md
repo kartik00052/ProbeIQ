@@ -3,11 +3,17 @@
 ## Verified stack (as of this document)
 - Python >= 3.13 (`backend/pyproject.toml`).
 - FastAPI application entrypoint: `backend/app/main.py` (app factory + exception
-  handlers + CORS), router mounted at `backend/app/api/routes/interview.py`.
+  handlers + CORS + `init_db`), routers mounted at `backend/app/api/routes/`
+  (`auth.py` and `interview.py`).
 - Pydantic v2 schemas (`backend/app/schemas/`) and pydantic-settings config
   (`backend/app/core/config.py`, `PROBEIQ_` env prefix).
 - JSON-backed repositories (`backend/app/repositories/`) reading
   `backend/app/data/curriculum.json` and `candidates.json`.
+- Auth persistence: SQLAlchemy 2.x + SQLite (default `app/data/probeiq.db`,
+  override via `PROBEIQ_DATABASE_URL`). ORM models in `app/models/`
+  (`User`, `AuthSession`), engine/session wiring in `app/core/database.py`,
+  Argon2id hashing + token generation in `app/core/security.py`, domain logic in
+  `app/services/auth_service.py`.
 - Deterministic services (`backend/app/services/`): candidate analysis,
   curriculum-day selection, topic planning, and the interview engine service.
 - Interview engine: LangGraph graph (`app/orchestration/graph.py`) with nodes
@@ -16,19 +22,24 @@
   by default (heuristic generator/evaluator); the LLM layer is optional.
 - LLM factory (`app/llm/factory.py`): `openai` / `openai-compatible` →
   ChatOpenAI, `nvidia` → ChatNVIDIA (NVIDIA-hosted GLM).
-- Tooling: pytest (174 passed, 3 skipped — the skips are live-LLM only), ruff,
+- Tooling: pytest (180 passed, 3 skipped — the skips are live-LLM only), ruff,
   mypy.
-- Declared but **not used** in code: asyncpg, redis, sqlalchemy, httpx,
-  python-dotenv. Do not claim these are part of the running system.
+- Declared but **not used** in code: asyncpg, redis, httpx, python-dotenv. Do
+  not claim these are part of the running system.
 
 ## Architecture
 - Routes → services → repositories. Keep business logic out of route handlers.
-- `app/api/routes/` — HTTP endpoints and request/response shaping.
-- `app/services/` — business logic (analysis, selection, planning, interview).
-- `app/repositories/` — data access (JSON files) and `session_store.py`
-  (in-memory per-`sessionId` session persistence).
+- `app/api/routes/` — HTTP endpoints and request/response shaping (`auth.py` for
+  register/login/logout/me, `interview.py` for the interview).
+- `app/services/` — business logic (analysis, selection, planning, interview,
+  auth).
+- `app/repositories/` — data access (JSON files), `session_store.py`
+  (in-memory per-`sessionId` interview persistence), and SQLAlchemy-backed
+  repositories (`user_repository.py`, `auth_session_repository.py`).
+- `app/models/` — SQLAlchemy ORM models for auth (`User`, `AuthSession`).
 - `app/schemas/` — Pydantic models for data and API contracts.
-- `app/core/` — config, exceptions (`ProbeIQError` hierarchy), logging
+- `app/core/` — config, exceptions (`ProbeIQError` hierarchy), `security.py`
+  (hashing/tokens), `database.py` (engine + sessions), logging
   (`logging.py` is still an empty placeholder).
 - `app/orchestration/` — the LangGraph interview graph and nodes; implemented.
 - `app/agents/`, `app/prompts/` — LLM-backed agents and prompt templates;
@@ -40,6 +51,13 @@
   `.opencode/technical-spec.md`: `POST /api/interview` with `sessionId` plus
   exactly one of `candidate` (start) or `message` (turn), returning
   `{ reply, done, feedback? }`.
+- Auth endpoints (the user-approved extension): `POST /api/auth/register`
+  (201), `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
+- `POST /api/interview` requires an authenticated session (401
+  `not_authenticated` otherwise); a started session is bound to the
+  authenticated user and cross-account access is rejected (403 `forbidden`).
+  The gate is `get_current_user` in `app/api/dependencies.py` — never trust
+  client-side route guards.
 - Validate external input via Pydantic schemas.
 - Return appropriate errors using `ProbeIQError` subclasses and the global
   exception handlers in `app/main.py`.
@@ -56,9 +74,11 @@
 - Preserve the existing architecture unless explicitly asked to change it.
 
 ## Repository layer rules
-- Repositories abstract data sources; the current implementation loads JSON
-  files and raises typed `DataLoadError`s on failure.
-- Do not invent database models.
+- Repositories abstract data sources; JSON repositories load
+  `curriculum.json` / `candidates.json` and raise typed `DataLoadError`s on
+  failure; auth repositories use SQLAlchemy sessions from `app/core/database.py`.
+- Do not invent database models beyond the existing auth models; interview
+  sessions intentionally remain in-memory.
 
 ## Agent/orchestration rules
 - Orchestration (LangGraph) nodes are small and testable.
@@ -80,15 +100,22 @@
 - Use `.env.example` for documented environment variables. Key variables:
   `PROBEIQ_LLM_ENABLED`, `PROBEIQ_LLM_PROVIDER`, `PROBEIQ_LLM_MODEL`,
   `PROBEIQ_LLM_BASE_URL`, `PROBEIQ_LLM_API_KEY`, `PROBEIQ_LLM_MAX_RETRIES`,
-  `PROBEIQ_CORS_ALLOWED_ORIGINS`, `PROBEIQ_DATA_DIR`, `PROBEIQ_ENVIRONMENT`.
+  `PROBEIQ_CORS_ALLOWED_ORIGINS`, `PROBEIQ_DATA_DIR`, `PROBEIQ_ENVIRONMENT`,
+  `PROBEIQ_DATABASE_URL`, `PROBEIQ_AUTH_COOKIE_NAME`,
+  `PROBEIQ_AUTH_SESSION_TTL_DAYS`.
 
 ## Async programming
-- The current endpoints are synchronous; the declared async/db/redis stack is
+- The current endpoints are synchronous; the declared async/redis stack is
   not yet wired. Do not claim async infrastructure exists.
 
-## Database / Redis
-- Declared in `pyproject.toml` but not used. Do not add database models or
-  infrastructure the project does not require.
+## Database
+- Auth persistence uses SQLite via SQLAlchemy (sync). `app/core/database.py`
+  owns the engine/session factory; tables are created idempotently in `init_db`
+  at app startup. Default DB file: `app/data/probeiq.db` (git-ignored).
+- `asyncpg` and `redis` are declared in `pyproject.toml` but not used. Do not
+  add database models or infrastructure the project does not require.
+- Interview sessions stay in `InMemorySessionStore` — do not persist them
+  without an explicit request.
 
 ## Setup & infrastructure (uv + Docker)
 - Dependency management is uv (pinned to 0.11.21; Python 3.13 via
@@ -106,13 +133,14 @@
   - Start: `docker compose up -d` from the repo root (single `backend` service
     on port 8000; `backend/.env` is loaded when present and is optional).
   - Stop: `docker compose down`. Do NOT use `down -v` (it deletes named volumes).
-- PostgreSQL: NOT currently used by the application — there is no DB code under
-  `backend/app/`, so no postgres service is defined in docker-compose.yml. The
-  `asyncpg`/`sqlalchemy`/`redis` deps declared in `backend/pyproject.toml` are
-  unused placeholders; wiring a database is a separate follow-up item.
+- PostgreSQL: NOT currently used by the application — auth persistence is
+  SQLite (a separate Postgres service would add no value). The
+  `asyncpg`/`redis` deps declared in `backend/pyproject.toml` are unused
+  placeholders; a Postgres migration is a separate follow-up item.
 
 ## Testing
-- Run `pytest` from `backend/` (test suite: `backend/tests/`).
+- Run `pytest` from `backend/` (test suite: `backend/tests/`; 180 passed,
+  3 skipped — the skips are live-LLM only).
 - Run `ruff check .` and `mypy app tests` from `backend/`.
 - Add tests alongside new functionality.
 - Never claim tests passed unless they were actually executed.
@@ -120,4 +148,9 @@
 ## Security
 - Treat all input as untrusted; validate with schemas.
 - Return only appropriate error messages to clients.
+- Passwords are hashed with Argon2id (`app/core/security.py`); login errors are
+  deliberately generic so the API never reveals whether an email exists.
+- Session tokens are opaque, server-side, and revocable; the cookie is
+  HTTP-only + `SameSite=Lax` (Secure in production). CORS allows credentials
+  only to explicit origins — never add a wildcard.
 - Verify integrations before claiming they work.
