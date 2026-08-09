@@ -1,7 +1,9 @@
+import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { AppLayout } from '../../layouts/AppLayout'
 import { Logo } from '../../components/common/Logo'
 import { Button } from '../../components/ui/Button'
+import { staggerContainer, revealItemVariants } from '../../components/animations/variants'
 import { ROUTES } from '../../constants/routes'
 
 export default function LandingPage() {
@@ -14,21 +16,28 @@ export default function LandingPage() {
         </Link>
       </nav>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-8 text-center">
-        <p className="font-mono text-xs uppercase tracking-[0.3em] text-accent">AI technical interview agent</p>
-        <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight md:text-6xl">
+      <motion.div
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+        className="flex flex-1 flex-col items-center justify-center gap-8 text-center"
+      >
+        <motion.p variants={revealItemVariants} className="font-mono text-xs uppercase tracking-[0.3em] text-accent">
+          AI technical interview agent
+        </motion.p>
+        <motion.h1 variants={revealItemVariants} className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight md:text-6xl">
           Prove your skills with a <span className="text-accent">human-calibrated</span> AI interviewer.
-        </h1>
-        <p className="max-w-lg text-lg leading-relaxed text-text-dim">
+        </motion.h1>
+        <motion.p variants={revealItemVariants} className="max-w-lg text-lg leading-relaxed text-text-dim">
           A 31-day AI-cohort curriculum becomes a live, adaptive interview. Your answers are probed in depth and
           turned into an honest post-interview report.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row">
+        </motion.p>
+        <motion.div variants={revealItemVariants} className="flex flex-col gap-3 sm:flex-row">
           <Link to={ROUTES.setup}>
             <Button>Begin interview</Button>
           </Link>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </AppLayout>
   )
 }

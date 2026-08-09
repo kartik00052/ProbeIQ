@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { questionVariants } from '../animations/variants'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
+import { questionVariants, questionVariantsMobile } from '../animations/variants'
 
 interface QuestionCardProps {
   text: string
@@ -7,12 +8,14 @@ interface QuestionCardProps {
 }
 
 export function QuestionCard({ text, index }: QuestionCardProps) {
+  const isNarrow = useMediaQuery('(max-width: 640px)')
+  const variants = isNarrow ? questionVariantsMobile : questionVariants
   return (
-    <div className="relative" style={{ perspective: '1200px' }}>
+    <div className="relative" style={{ perspective: isNarrow ? '800px' : '1200px' }}>
       <AnimatePresence mode="wait">
         <motion.article
           key={index}
-          variants={questionVariants}
+          variants={variants}
           initial="initial"
           animate="animate"
           exit="exit"

@@ -7,5 +7,9 @@ interface InterviewTimerProps {
 
 export function InterviewTimer({ paused }: InterviewTimerProps) {
   const seconds = useInterviewTimer(paused)
-  return <span className="font-mono text-sm text-text-dim">{formatTime(seconds)}</span>
+  return (
+    <span aria-label="Elapsed time" className="font-mono text-sm text-text-dim">
+      {formatTime(seconds)}
+    </span>
+  )
 }

@@ -117,7 +117,7 @@ export function AnswerInput({ disabled, onSubmit }: AnswerInputProps) {
             disabled={disabled}
             aria-label="Your answer"
             rows={5}
-            className="w-full resize-none rounded-xl border border-line bg-surface/60 p-4 text-base leading-relaxed text-text placeholder:text-text-dim/60 focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 min-h-[10rem] md:min-h-[13rem]"
+            className="w-full resize-none rounded-xl border border-line bg-surface/60 p-4 text-base leading-relaxed text-text placeholder:text-text-dim/80 focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 min-h-[10rem] md:min-h-[13rem]"
           />
         )}
       </AnimatePresence>

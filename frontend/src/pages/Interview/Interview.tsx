@@ -71,8 +71,9 @@ export default function Interview() {
             {history.map((message) => (
               <motion.div
                 key={message.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
                 className={`flex flex-col gap-1 ${
                   message.role === 'candidate' ? 'items-end self-end' : 'items-start self-start'
                 }`}

@@ -6,6 +6,7 @@ import { Logo } from '../../components/common/Logo'
 import { Button } from '../../components/ui/Button'
 import { FeedbackSummary } from '../../components/feedback/FeedbackSummary'
 import { ImprovementSuggestions } from '../../components/feedback/ImprovementSuggestions'
+import { staggerContainer, revealItemVariants } from '../../components/animations/variants'
 import { useInterview } from '../../hooks/useInterview'
 import { ROUTES } from '../../constants/routes'
 import { toFeedbackViewModel } from '../../services/feedbackService'
@@ -77,31 +78,37 @@ export default function Feedback() {
               exit={{ opacity: 0 }}
               transition={depthTransition}
               onAnimationComplete={() => reportHeadingRef.current?.focus()}
-              className="flex flex-col gap-6"
+              className="flex flex-col"
             >
-              <div className="flex flex-col gap-3">
-                <p className="font-mono text-xs uppercase tracking-[0.3em] text-accent">Debrief</p>
-                <h1 ref={reportHeadingRef} tabIndex={-1} className="text-3xl font-semibold tracking-tight outline-none md:text-4xl">Your post-interview report</h1>
-              </div>
+              <motion.div variants={staggerContainer} initial="initial" animate="animate" className="flex flex-col gap-6">
+                <motion.div variants={revealItemVariants} className="flex flex-col gap-3">
+                  <p className="font-mono text-xs uppercase tracking-[0.3em] text-accent">Debrief</p>
+                  <h1 ref={reportHeadingRef} tabIndex={-1} className="text-3xl font-semibold tracking-tight outline-none md:text-4xl">Your post-interview report</h1>
+                </motion.div>
 
-              {view.summary ? (
-                <FeedbackSummary summary={view.summary} strengths={view.strengths} gaps={view.gaps} />
-              ) : (
-                <p className="text-text-dim">No report was returned for this session.</p>
-              )}
-              <ImprovementSuggestions suggestions={view.next} />
+                <motion.div variants={revealItemVariants}>
+                  {view.summary ? (
+                    <FeedbackSummary summary={view.summary} strengths={view.strengths} gaps={view.gaps} />
+                  ) : (
+                    <p className="text-text-dim">No report was returned for this session.</p>
+                  )}
+                </motion.div>
+                <motion.div variants={revealItemVariants}>
+                  <ImprovementSuggestions suggestions={view.next} />
+                </motion.div>
 
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Link
-                  to={ROUTES.setup}
-                  onClick={(event) => {
-                    if (!confirmExit()) event.preventDefault()
-                    else reset()
-                  }}
-                >
-                  <Button variant="ghost">Take another interview</Button>
-                </Link>
-              </div>
+                <motion.div variants={revealItemVariants} className="mt-4 flex flex-wrap gap-3">
+                  <Link
+                    to={ROUTES.setup}
+                    onClick={(event) => {
+                      if (!confirmExit()) event.preventDefault()
+                      else reset()
+                    }}
+                  >
+                    <Button variant="ghost">Take another interview</Button>
+                  </Link>
+                </motion.div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
