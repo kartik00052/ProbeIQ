@@ -31,10 +31,10 @@ Service fields:
 | Root Directory | *(empty)* |
 | Dockerfile Path | `Dockerfile` |
 | Docker Build Context Directory | *(empty — defaults to repo root)* |
-| Docker Command | `/bin/sh -c "/usr/local/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT"` |
+| Docker Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 | Health Check Path | *(empty — the app has no `/healthz`; a 404 there marks the service unhealthy)* |
 
-`/bin/sh -c` is required so Render's `$PORT` env var expands (the image's `CMD` hardcodes port 8000). `app/.venv/bin` is on `PATH`; `uv sync --no-group dev --no-install-project --locked` runs at build time.
+Do **not** prefix the Docker Command with `/bin/sh -c "..."`. Render already runs the field through `/bin/sh -c`, so a nested `sh -c` with quotes collapses the whole command into one token and the service exits 127 (`not found`). At build time `uv export --no-group dev --locked` produces a hashed requirements file and pip installs it into the system Python (`/usr/local`); `uvicorn` resolves there. The image's `CMD` (hardcoded port 8000) is only a fallback — the Docker Command overrides it with Render's `$PORT`.
 
 Environment variables (`PROBEIQ_` prefix, pydantic-settings — see `backend/.env.example`):
 - `PROBEIQ_ENVIRONMENT=production` — required; the session cookie only gets the `Secure` flag in production (`backend/app/api/routes/auth.py`).
