@@ -7,19 +7,20 @@ FROM python:3.13-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy \
-    PATH="/app/.venv/bin:$PATH"
+    UV_LINK_MODE=copy
 
 WORKDIR /app
 
 # Install uv, pinned to match the local development toolchain.
 RUN pip install --no-cache-dir uv==0.11.21
 
-# Install dependencies first so the layer is cached until the lock changes.
-# Installed into the system Python (/usr/local) rather than a venv: Render's
-# runtime did not expose /app/.venv/bin, so console scripts would 127.
+# Install dependencies into the system Python (/usr/local) rather than a venv:
+# Render's runtime did not expose /app/.venv/bin, so venv console scripts did
+# not resolve at startup (exit 127). uv still resolves the locked set; pip
+# performs the system-wide install.
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
-RUN uv sync --no-group dev --no-install-project --locked --system
+RUN uv export --no-group dev --locked --format requirements.txt --output-file /tmp/requirements.txt \
+    && pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Copy application source.
 COPY backend/app ./app
