@@ -18,15 +18,19 @@ export default function Register() {
   const from = (location.state as { from?: string } | null)?.from ?? ROUTES.setup
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!email.trim() || !password || isLoading) return
+    if (!email.trim() || !password || isLoading || submitting) return
+    setSubmitting(true)
     try {
       await register(email.trim(), password)
       navigate(from, { replace: true })
     } catch {
       // The store has surfaced the error; the ErrorMessage below renders it.
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -96,8 +100,8 @@ export default function Register() {
                 <Link to={ROUTES.login} className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline">
                   Already have an account? Sign in
                 </Link>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? 'Creating account…' : 'Create account'}
+                <Button type="submit" disabled={isLoading || submitting}>
+                  {isLoading || submitting ? 'Creating account…' : 'Create account'}
                 </Button>
               </div>
             </form>

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { User } from '../types/auth'
 import { registerAccount, signIn, signOut, getCurrentSession } from '../services/authService'
+import { useInterviewStore } from './interviewStore'
 import { toErrorMessage } from '../utils/errorHandler'
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
@@ -8,6 +9,7 @@ export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 interface AuthStore {
   status: AuthStatus
   user: User | null
+  lastUserId: string | null
   error: string | null
   refreshSession: () => Promise<void>
   register: (email: string, password: string) => Promise<void>
@@ -15,9 +17,10 @@ interface AuthStore {
   logout: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
+export const useAuthStore = create<AuthStore>((set, get) => ({
   status: 'loading',
   user: null,
+  lastUserId: null,
   error: null,
 
   // Probe the HTTP-only session cookie on boot. The server answers {user: null}
@@ -35,7 +38,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
     set({ error: null })
     try {
       const user = await registerAccount(email, password)
-      set({ status: 'authenticated', user, error: null })
+      const accountChanged = user.id !== get().lastUserId
+      set({ status: 'authenticated', user, lastUserId: user.id, error: null })
+      if (accountChanged) useInterviewStore.getState().reset()
     } catch (error) {
       set({ error: toErrorMessage(error) })
       throw error
@@ -46,7 +51,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
     set({ error: null })
     try {
       const user = await signIn(email, password)
-      set({ status: 'authenticated', user, error: null })
+      const accountChanged = user.id !== get().lastUserId
+      set({ status: 'authenticated', user, lastUserId: user.id, error: null })
+      if (accountChanged) useInterviewStore.getState().reset()
     } catch (error) {
       set({ error: toErrorMessage(error) })
       throw error
