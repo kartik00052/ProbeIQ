@@ -44,12 +44,14 @@ class SessionService:
         question_generator: QuestionGenerator,
         evaluator: AnswerEvaluator,
         feedback_generator: FeedbackGenerator,
+        llm_engine: object | None = None,
         min_questions: int = 8,
         min_covered_days: int = 4,
         max_questions_per_topic: int = 3,
         hard_max_questions: int = 16,
     ) -> None:
         self._store = store
+        self._llm_engine = llm_engine
         self._graph = build_interview_graph(
             analysis_service=analysis_service,
             profile_service=profile_service,
@@ -108,6 +110,21 @@ class SessionService:
 
     def get(self, session_id: str) -> InterviewSession:
         return self._store.get(session_id)
+
+    @property
+    def engine_info(self) -> dict[str, str | None]:
+        """Which engine is driving interviews, for the frontend status badge.
+
+        ``"offline"`` when the LLM is disabled (deterministic template/heuristic
+        engine); ``"llm"`` plus the model name otherwise. The model name is the
+        most recently used roster entry, or the primary model before any call.
+        """
+        if self._llm_engine is None:
+            return {"engine": "offline", "model": None}
+        model = getattr(self._llm_engine, "model", None) or getattr(
+            self._llm_engine, "model_name", None
+        )
+        return {"engine": "llm", "model": str(model) if model else None}
 
     @staticmethod
     def _session_from(result: dict[str, Any]) -> InterviewSession:

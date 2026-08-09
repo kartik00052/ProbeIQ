@@ -26,6 +26,11 @@ class InterviewResponse(BaseModel):
     reply: str
     done: bool
     feedback: InterviewFeedback | None = None
+    # Additive status fields (documented in .opencode/technical-spec.md): which
+    # engine produced this reply and the model name, so the frontend can surface
+    # LLM integration. Never carry secrets; the model name is safe to display.
+    engine: str = "offline"
+    model: str | None = None
 
 
 class InterviewRequest(BaseModel):

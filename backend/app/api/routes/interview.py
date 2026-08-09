@@ -22,8 +22,11 @@ def interview(
     else:
         assert payload.message is not None
         session = session_service.answer(payload.sessionId, payload.message, owner_user_id=owner_user_id)
+    engine_info = session_service.engine_info
     return InterviewResponse(
         reply=session.last_reply or "",
         done=session.interview_complete,
         feedback=session.feedback,
+        engine=engine_info["engine"] or "offline",
+        model=engine_info["model"],
     )

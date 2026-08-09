@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -64,6 +65,23 @@ class Settings(BaseSettings):
     # When disabled (default), the template question generator and heuristic
     # evaluator are used so the service runs fully offline.
     llm_enabled: bool = False
+    # Optional multi-model roster (JSON list). Each entry is a dict:
+    #   {
+    #     "provider": "nvidia" | "openai" | "openai-compatible",
+    #     "model": "...",
+    #     "api_key": "...",
+    #     "base_url": "",                    # empty -> provider default
+    #     "temperature": 0.0, "top_p": 1.0, "seed": 42,
+    #     "max_tokens": 16384,               # completion token budget
+    #     "max_retries": 2,                  # transient-retry count (OpenAI-compatible)
+    #     "reasoning_budget": null,          # NVIDIA reasoning models (e.g. nemotron-3-ultra)
+    #     "enable_thinking": false           # NVIDIA chat_template_kwargs.enable_thinking
+    #   }
+    # The first entry is the PRIMARY model; the rest are automatic fallbacks --
+    # if an LLM call fails, the engine retries with the next entry (LangChain
+    # ``ChatNVIDIA`` / ``ChatOpenAI`` per entry). When empty (default), the
+    # single-model settings below (``llm_model`` / ``llm_api_key`` / ...) are used.
+    llm_models: list[dict[str, Any]] = []
     # Chat model provider: "nvidia" | "openai" | "openai-compatible".
     # "nvidia" reaches NVIDIA-hosted GLM 5.2 via its OpenAI-compatible endpoint
     # (default base URL applied by app.llm.factory when base_url is empty).

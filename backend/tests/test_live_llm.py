@@ -36,6 +36,15 @@ def _require_llm():
     return llm
 
 
+def _model_name(llm) -> str:
+    return (
+        getattr(llm, "model", None)
+        or getattr(llm, "model_name", None)
+        or settings.llm_model
+        or "unknown"
+    )
+
+
 def _question_context(knowledge_service) -> QuestionContext:
     node = knowledge_service.node(10)
     return QuestionContext(
@@ -93,7 +102,7 @@ def test_live_model_responds() -> None:
     )
     text = getattr(response, "content", "")
     assert isinstance(text, str) and text.strip()
-    print(f"[live] model={settings.llm_model} provider={settings.llm_provider} responded")
+    print(f"[live] model={_model_name(llm)} provider={settings.llm_provider} responded")
 
 
 def test_live_question_generation(knowledge_service) -> None:

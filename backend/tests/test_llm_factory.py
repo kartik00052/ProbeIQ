@@ -21,6 +21,7 @@ from pydantic import SecretStr
 from app.core.config import Settings
 from app.core.exceptions import LLMConfigurationError
 from app.llm.factory import NVIDIA_BASE_URL, get_llm
+from app.llm.fallback import FallbackChatModel
 
 _FAKE_KEY = "nvapi-fake-key-never-used-outside-tests"
 
@@ -186,3 +187,114 @@ def test_default_settings_never_require_a_key_when_disabled() -> None:
     # The application default (LLM disabled) must construct without any key.
     conf = Settings(_env_file=None)  # type: ignore[call-arg]
     assert get_llm(conf) is None
+
+
+# --- multi-model roster (fallback chain) -------------------------------------
+
+
+def _roster_settings(**overrides) -> Settings:
+    defaults: dict[str, Any] = {
+        "llm_enabled": True,
+        "llm_models": [
+            {
+                "provider": "nvidia",
+                "model": "z-ai/glm-5.2",
+                "api_key": _FAKE_KEY,
+            },
+            {
+                "provider": "nvidia",
+                "model": "nvidia/nemotron-3-ultra-550b-a55b",
+                "api_key": "nvapi-second-key-not-a-real-secret",
+            },
+        ],
+    }
+    defaults.update(overrides)
+    return Settings(_env_file=None, **defaults)  # type: ignore[call-arg]
+
+
+def test_roster_builds_fallback_chain(monkeypatch) -> None:
+    monkeypatch.setattr("app.llm.factory.ChatNVIDIA", _FakeChatNVIDIA)
+    llm = get_llm(_roster_settings())
+    assert isinstance(llm, FallbackChatModel)
+    assert llm.available_models == ["z-ai/glm-5.2", "nvidia/nemotron-3-ultra-550b-a55b"]
+    assert llm.model == "z-ai/glm-5.2"
+    assert llm.last_used_model is None
+    assert len(llm._clients) == 2
+    assert llm._clients[0].kwargs["model"] == "z-ai/glm-5.2"
+    assert llm._clients[1].kwargs["model"] == "nvidia/nemotron-3-ultra-550b-a55b"
+
+
+def test_single_roster_entry_returns_bare_client(monkeypatch) -> None:
+    monkeypatch.setattr("app.llm.factory.ChatNVIDIA", _FakeChatNVIDIA)
+    conf = _roster_settings(llm_models=[_roster_settings().llm_models[0]])
+    llm = get_llm(conf)
+    assert isinstance(llm, _FakeChatNVIDIA)
+    assert not isinstance(llm, FallbackChatModel)
+
+
+def test_roster_missing_api_key_fails_clearly() -> None:
+    bad = {"provider": "nvidia", "model": "z-ai/glm-5.2", "api_key": ""}
+    conf = _roster_settings(llm_models=[bad])
+    with pytest.raises(LLMConfigurationError) as excinfo:
+        get_llm(conf)
+    message = str(excinfo.value)
+    assert "z-ai/glm-5.2" in message
+    assert _FAKE_KEY not in message
+
+
+def test_roster_invalid_provider_fails_clearly() -> None:
+    bad = {"provider": "bedrock", "model": "claude", "api_key": _FAKE_KEY}
+    conf = _roster_settings(llm_models=[bad])
+    with pytest.raises(LLMConfigurationError) as excinfo:
+        get_llm(conf)
+    assert "bedrock" in str(excinfo.value)
+    assert _FAKE_KEY not in str(excinfo.value)
+
+
+# --- FallbackChatModel behaviour ---------------------------------------------
+
+
+class _FakeClient:
+    def __init__(self, name: str, fail: bool = False) -> None:
+        self.name = name
+        self.fail = fail
+
+    def invoke(self, messages, **kwargs):  # type: ignore[no-untyped-def]
+        if self.fail:
+            raise RuntimeError(f"underlying failure on {self.name}")
+        return f"ok:{self.name}"
+
+
+def test_fallback_switches_to_next_model_on_failure() -> None:
+    chain = FallbackChatModel(
+        clients=[_FakeClient("model-a", fail=True), _FakeClient("model-b")],
+        model_names=["model-a", "model-b"],
+    )
+    response = chain.invoke([("user", "hi")])
+    assert response == "ok:model-b"
+    assert chain.last_used_model == "model-b"
+    assert chain.model == "model-b"
+
+
+def test_fallback_returns_primary_when_it_succeeds() -> None:
+    chain = FallbackChatModel(
+        clients=[_FakeClient("model-a"), _FakeClient("model-b", fail=True)],
+        model_names=["model-a", "model-b"],
+    )
+    response = chain.invoke([("user", "hi")])
+    assert response == "ok:model-a"
+    assert chain.last_used_model == "model-a"
+
+
+def test_fallback_all_fail_raises_sanitized_error() -> None:
+    chain = FallbackChatModel(
+        clients=[_FakeClient("a", fail=True), _FakeClient("b", fail=True)],
+        model_names=["model-a", "model-b"],
+    )
+    with pytest.raises(RuntimeError) as excinfo:
+        chain.invoke([("user", "hi")])
+    message = str(excinfo.value)
+    assert "model-b" in message
+    assert "RuntimeError" in message
+    # The underlying exception detail (which could echo payloads) is not leaked.
+    assert "underlying failure" not in message

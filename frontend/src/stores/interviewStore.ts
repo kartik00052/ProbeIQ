@@ -22,6 +22,8 @@ interface InterviewStore {
   error: string | null
   lastReply: string | null
   failedAnswer: string | null
+  engine: 'llm' | 'offline'
+  engineModel: string | null
   start: (candidate: Candidate) => Promise<void>
   answer: (message: string) => Promise<boolean>
   retry: () => Promise<boolean>
@@ -37,17 +39,21 @@ export const useInterviewStore = create<InterviewStore>((set, get) => ({
   error: null,
   lastReply: null,
   failedAnswer: null,
+  engine: 'offline',
+  engineModel: null,
 
   start: async (candidate) => {
     if (get().status === 'thinking') return
     const sessionId = newSessionId()
-    set({ status: 'thinking', sessionId, candidate, transcript: [], feedback: null, error: null, lastReply: null, failedAnswer: null })
+    set({ status: 'thinking', sessionId, candidate, transcript: [], feedback: null, error: null, lastReply: null, failedAnswer: null, engine: 'offline', engineModel: null })
     try {
       const response = await beginInterview(sessionId, candidate)
       set((state) => ({
         status: response.done ? 'complete' : 'active',
         lastReply: response.reply,
         feedback: response.feedback ?? null,
+        engine: response.engine ?? 'offline',
+        engineModel: response.model ?? null,
         transcript: [...state.transcript, createMessage('interviewer', response.reply)],
       }))
     } catch (error) {
@@ -71,6 +77,8 @@ export const useInterviewStore = create<InterviewStore>((set, get) => ({
         status: response.done ? 'complete' : 'active',
         lastReply: response.reply,
         feedback: response.feedback ?? null,
+        engine: response.engine ?? 'offline',
+        engineModel: response.model ?? null,
         failedAnswer: null,
         transcript: [...state.transcript, createMessage('interviewer', response.reply)],
       }))
@@ -102,5 +110,7 @@ export const useInterviewStore = create<InterviewStore>((set, get) => ({
       error: null,
       lastReply: null,
       failedAnswer: null,
+      engine: 'offline',
+      engineModel: null,
     }),
 }))

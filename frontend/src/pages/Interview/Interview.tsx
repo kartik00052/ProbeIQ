@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AppLayout } from '../../layouts/AppLayout'
 import { InterviewHeader } from '../../components/interview/InterviewHeader'
+import { EngineBadge } from '../../components/interview/EngineBadge'
 import { InterviewTimer } from '../../components/interview/InterviewTimer'
 import { InterviewProgress } from '../../components/interview/InterviewProgress'
 import { QuestionCard } from '../../components/interview/QuestionCard'
@@ -49,7 +50,10 @@ export default function Interview() {
   return (
     <AppLayout>
       <InterviewHeader topic={candidate?.member.jobRole}>
-        <InterviewTimer paused={status !== 'active'} />
+        <div className="flex items-center gap-3">
+          <EngineBadge />
+          <InterviewTimer paused={status !== 'active'} />
+        </div>
       </InterviewHeader>
 
       {candidate && <InterviewProgress missions={candidate.missions} />}

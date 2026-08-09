@@ -17,6 +17,8 @@ export interface InterviewResponse {
   reply: string
   done: boolean
   feedback?: InterviewFeedback | null
+  engine?: 'llm' | 'offline'
+  model?: string | null
 }
 
 export interface ApiErrorBody {

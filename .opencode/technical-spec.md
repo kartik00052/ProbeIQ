@@ -122,6 +122,42 @@ Each array should contain concise, actionable points.
 
 ---
 
+# Additive status fields (LLM integration)
+
+Implemented 2026-08-09 as an additive extension to the base contract. Every
+`POST /api/interview` response may carry two extra fields that describe the
+engine that produced the reply; they are optional and never present in the base
+submission shape's required fields.
+
+| Field | Type | Meaning |
+|------|------|---------|
+| `engine` | `"llm" \| "offline"` | `"llm"` when the LLM-backed generator/evaluator drove the reply, `"offline"` when the deterministic template/heuristic engine was used |
+| `model` | `string \| null` | The model name (e.g. `nvidia/nemotron-3-ultra-550b-a55b`) that produced the reply, or `null` when offline |
+
+Example (LLM-backed turn):
+
+```json
+{
+  "reply": "...",
+  "done": false,
+  "engine": "llm",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b"
+}
+```
+
+These fields never carry secrets — the model name is safe to display in the
+frontend (the frontend shows it as an engine badge in the interview header).
+
+## Multi-model roster
+
+The backend LLM is LangChain-based (`ChatNVIDIA` / `ChatOpenAI`). A JSON roster
+(`PROBEIQ_LLM_MODELS`) configures several models; the first is the primary and
+the rest are automatic fallbacks — if an LLM call fails, the engine retries with
+the next entry. See `backend/.env.example` for the schema. `engine`/`model`
+above reflect the model that actually responded.
+
+---
+
 # Auth extension
 
 Implemented 2026-08-09 (commit `b9a711a`) as a user-approved extension to the
