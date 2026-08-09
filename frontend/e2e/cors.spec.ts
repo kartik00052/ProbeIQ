@@ -52,7 +52,9 @@ test.describe('production CORS path', () => {
     expect(res.headers()['access-control-allow-methods']).toContain('POST')
   })
 
-  test('a real cross-origin POST from the production page succeeds', async ({ page }) => {
+  test('a real cross-origin POST from the production page passes CORS (authenticated guard applies)', async ({
+    page,
+  }) => {
     const sessionId = `cors-prod-sim-${Date.now()}`
     const payload = { ...START_PAYLOAD, sessionId }
     let acao: string | undefined
@@ -67,8 +69,11 @@ test.describe('production CORS path', () => {
     await page.goto('/')
     // The browser runs a genuine cross-origin request with a CORS preflight.
     // If the middleware were misconfigured the fetch below would reject with a
-    // TypeError and page.evaluate would throw; resolving with a 200 + readable
+    // TypeError and page.evaluate would throw; resolving with a readable JSON
     // body is itself proof the preflight and response passed browser CORS.
+    // Since the interview endpoint is now behind authentication, the anonymous
+    // request resolves to 401 not_authenticated — which still requires the
+    // CORS headers to be readable by JS.
     const result = await page.evaluate(
       async ({ target, payload }) => {
         const res = await fetch(`${target}/api/interview`, {
@@ -80,12 +85,12 @@ test.describe('production CORS path', () => {
       },
       { target: BACKEND, payload },
     )
-    expect(result.status).toBe(200)
-    expect(result.body.reply).toBeTruthy()
-    expect(result.body.done).toBe(false)
+    expect(result.status).toBe(401)
+    expect(result.body.error).toBe('not_authenticated')
+    expect(result.body.detail).toBeTruthy()
     // The access-control-allow-origin header is not exposed to JS (not listed
     // in Access-Control-Expose-Headers), so assert it at the network layer.
-    expect(corsStatus).toBe(200)
+    expect(corsStatus).toBe(401)
     expect(acao).toBe('http://localhost:5173')
   })
 

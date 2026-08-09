@@ -5,10 +5,12 @@ import { CandidateForm } from '../../components/candidate/CandidateForm'
 import { ErrorMessage } from '../../components/common/ErrorMessage'
 import { Logo } from '../../components/common/Logo'
 import { useInterview } from '../../hooks/useInterview'
+import { useAuth } from '../../hooks/useAuth'
 import { ROUTES } from '../../constants/routes'
 
 export default function CandidateSetup() {
   const { start, status, error, reset, candidate } = useInterview()
+  const { logout } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -18,13 +20,23 @@ export default function CandidateSetup() {
 
   const loading = status === 'thinking'
 
+  const signOut = async () => {
+    await logout()
+    navigate(ROUTES.landing)
+  }
+
   return (
     <AppLayout showPresence={status === 'thinking'}>
-      <nav className="flex justify-between py-2">
+      <nav className="flex items-center justify-between py-2">
         <Logo />
-        <button type="button" onClick={reset} className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline">
-          Reset
-        </button>
+        <div className="flex items-center gap-5">
+          <button type="button" onClick={signOut} className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline">
+            Sign out
+          </button>
+          <button type="button" onClick={reset} className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline">
+            Reset
+          </button>
+        </div>
       </nav>
 
       <div className="flex flex-1 flex-col justify-center py-10">

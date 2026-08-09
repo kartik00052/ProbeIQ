@@ -24,9 +24,9 @@ async function runToCompletion(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/complete/, { timeout: 30_000 })
 }
 
-test('direct /complete without a session redirects to /setup', async ({ page }) => {
+test('direct /complete without a session redirects to /login', async ({ page }) => {
   await page.goto('/complete')
-  await expect(page).toHaveURL(/\/setup/, { timeout: 15_000 })
+  await expect(page).toHaveURL(/\/login/, { timeout: 15_000 })
 })
 
 test('completion transition reveals the report from backend feedback', async ({ page }) => {

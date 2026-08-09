@@ -6,4 +6,5 @@ export const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 120_000,
+  withCredentials: true,
 })

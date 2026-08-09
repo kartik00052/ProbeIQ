@@ -15,5 +15,11 @@ frontend/test-results/
 # Environment
 .env
 
+# Auth database (SQLite)
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
 # AI tooling scratch output
 .impeccable/

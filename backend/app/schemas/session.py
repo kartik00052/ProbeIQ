@@ -58,6 +58,10 @@ class InterviewSession(BaseModel):
     strategy: InterviewStrategy
     topic_plan: InterviewTopicPlan
 
+    # Owner (authenticated user id) of the interview. Set when the session is
+    # started through the authenticated API; used to enforce interview ownership.
+    owner_user_id: str | None = None
+
     selected_curriculum_days: list[int] = Field(default_factory=list)
     covered_curriculum_days: list[int] = Field(default_factory=list)
     covered_topics: list[str] = Field(default_factory=list)

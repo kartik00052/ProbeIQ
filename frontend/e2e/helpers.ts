@@ -8,7 +8,25 @@ export const STRONG_ANSWER =
   'retrieved context. The main trade-off is recall versus latency, so I would benchmark chunk ' +
   'size and index layout before locking the design.'
 
+/** Matches backend RegisterRequest password policy (min 8 chars). */
+export const TEST_PASSWORD = 'S3cure!Pass123'
+
+/**
+ * Registers a fresh account through the API so the context holds a valid
+ * session cookie. `page.request` shares the browser context's cookie jar, so
+ * the HTTP-only session cookie set here is sent with every subsequent page
+ * navigation/fetch.
+ */
+export async function signIn(page: Page): Promise<void> {
+  const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`
+  const response = await page.request.post('/api/auth/register', {
+    data: { email, password: TEST_PASSWORD },
+  })
+  expect(response.ok(), `signIn register failed: ${response.status()}`).toBeTruthy()
+}
+
 export async function startInterview(page: Page): Promise<void> {
+  await signIn(page)
   await page.goto('/setup')
   await page.getByLabel('Candidate profile JSON').waitFor({ state: 'visible' })
   await page.getByRole('button', { name: 'Begin interview' }).click()

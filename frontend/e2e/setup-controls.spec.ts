@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { attachErrorCollector } from './helpers'
+import { attachErrorCollector, signIn } from './helpers'
 
 test('load sample profile restores the sample JSON', async ({ page }) => {
+  await signIn(page)
   await page.goto('/setup')
   const textarea = page.getByLabel('Candidate profile JSON')
   await textarea.fill('{ "broken": true }')
@@ -12,6 +13,7 @@ test('load sample profile restores the sample JSON', async ({ page }) => {
 
 test('reset keeps setup usable and does not navigate', async ({ page }) => {
   const errors = attachErrorCollector(page)
+  await signIn(page)
   await page.goto('/setup')
   await page.getByRole('button', { name: 'Reset' }).click()
   await expect(page).toHaveURL(/\/setup/)
@@ -32,6 +34,7 @@ test('valid custom candidate JSON starts the interview', async ({ page }) => {
     missions: [{ day: 1, title: 'Intro to AI', passed: true, skipped: null, attempts: 1 }],
     signals: { commitDays: 1, missionsCompleted: 1, missionsFirstTry: 1 },
   })
+  await signIn(page)
   await page.goto('/setup')
   await page.getByLabel('Candidate profile JSON').fill(custom)
   await page.getByRole('button', { name: 'Begin interview' }).click()
@@ -41,6 +44,7 @@ test('valid custom candidate JSON starts the interview', async ({ page }) => {
 
 test('malformed candidate data shows an inline error and stays on setup', async ({ page }) => {
   const errors = attachErrorCollector(page)
+  await signIn(page)
   await page.goto('/setup')
   const malformed = JSON.stringify({
     member: {
@@ -64,6 +68,7 @@ test('malformed candidate data shows an inline error and stays on setup', async 
 test('failed start shows an error and retry recovers with a second request', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (err) => pageErrors.push(err.message))
+  await signIn(page)
   await page.goto('/setup')
   let startCalls = 0
   await page.route('**/api/interview', async (route) => {
@@ -96,6 +101,7 @@ test('failed start shows an error and retry recovers with a second request', asy
 test('double-click Begin produces exactly one start request', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (err) => pageErrors.push(err.message))
+  await signIn(page)
   await page.goto('/setup')
   let startCalls = 0
   await page.route('**/api/interview', async (route) => {

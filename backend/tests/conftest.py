@@ -1,4 +1,6 @@
 import os
+import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +11,12 @@ import pytest
 # app.core.config (and the API's module-level LLM construction) sees it.
 if os.getenv("PROBEIQ_LIVE_LLM_TEST") != "true":
     os.environ["PROBEIQ_LLM_ENABLED"] = "false"
+
+# Isolate the auth database: point the app at a throwaway SQLite file so tests
+# never touch (or require) a developer's real app/data/probeiq.db.
+if os.getenv("PROBEIQ_DATABASE_URL") is None:
+    _tmp_dir = Path(tempfile.mkdtemp(prefix="probeiq-test-auth-"))
+    os.environ["PROBEIQ_DATABASE_URL"] = f"sqlite:///{_tmp_dir.as_posix()}/test.db"
 
 from app.agents.evaluation_agent import DeterministicAnswerEvaluator
 from app.agents.feedback_agent import DeterministicFeedbackGenerator

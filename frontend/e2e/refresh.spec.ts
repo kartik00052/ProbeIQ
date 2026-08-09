@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import {
+  signIn,
   slowDownAnswers,
   startInterview,
   submitAnswer,
@@ -8,6 +9,7 @@ import {
 } from './helpers'
 
 test('refresh during setup keeps setup with the prefilled form', async ({ page }) => {
+  await signIn(page)
   await page.goto('/setup')
   await page.reload()
   await expect(page).toHaveURL(/\/setup/)

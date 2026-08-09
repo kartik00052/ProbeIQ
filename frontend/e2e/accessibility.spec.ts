@@ -3,6 +3,7 @@ import {
   attachErrorCollector,
   slowDownAnswers,
   startInterview,
+  signIn,
   submitAnswer,
   waitForReply,
 } from './helpers'
@@ -28,6 +29,7 @@ test('answer input is labelled and submit is disabled while empty', async ({ pag
 
 test('keyboard-only navigation reaches setup controls', async ({ page }) => {
   const errors = attachErrorCollector(page)
+  await signIn(page)
   await page.goto('/setup')
   const textarea = page.getByLabel('Candidate profile JSON')
   await textarea.focus()
@@ -41,6 +43,7 @@ test('keyboard-only navigation reaches setup controls', async ({ page }) => {
 test('reduced motion keeps the interface usable with a static presence', async ({ browser }) => {
   const context = await browser.newContext({ reducedMotion: 'reduce' })
   const page = await context.newPage()
+  await signIn(page)
   await page.goto('/')
   await expect(page.getByRole('heading', { name: /Prove your skills/i })).toBeVisible()
   await expect(page.locator('canvas')).toHaveCount(0)

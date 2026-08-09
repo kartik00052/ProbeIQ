@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import {
   STRONG_ANSWER,
   attachErrorCollector,
+  signIn,
   submitAnswer,
   transcript,
   waitForReply,
@@ -71,6 +72,10 @@ test.describe.serial('production simulation', () => {
     })
 
     const history = transcript(page)
+
+    await test.step('0. Register an account so the whole journey is authenticated', async () => {
+      await signIn(page)
+    })
 
     await test.step('1-2. Landing loads and the CTA leads to /setup', async () => {
       await page.goto('/')

@@ -1,5 +1,7 @@
+from fastapi import Depends, Request
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import ChatOpenAI
+from sqlalchemy.orm import Session
 
 from app.agents.evaluation_agent import (
     AnswerEvaluator,
@@ -17,10 +19,16 @@ from app.agents.question_agent import (
     QuestionGenerator,
 )
 from app.core.config import settings
+from app.core.database import get_db
+from app.core.exceptions import AuthenticationError
 from app.llm.factory import get_llm
+from app.models.user import User
+from app.repositories.auth_session_repository import AuthSessionRepository
 from app.repositories.candidate_repository import CandidateRepository
 from app.repositories.curriculum_repository import CurriculumRepository
 from app.repositories.session_store import InMemorySessionStore
+from app.repositories.user_repository import UserRepository
+from app.services.auth_service import AuthService
 from app.services.candidate_service import CandidateAnalysisService
 from app.services.curriculum_knowledge import CurriculumKnowledgeService
 from app.services.curriculum_service import CurriculumSelectionService
@@ -38,6 +46,28 @@ profile_service = ProfileService()
 topic_planner_service = TopicPlannerService(curriculum_selection_service, curriculum_knowledge_service)
 strategy_service = StrategyService(curriculum_knowledge_service)
 session_store = InMemorySessionStore()
+
+user_repository = UserRepository()
+auth_session_repository = AuthSessionRepository()
+auth_service = AuthService(
+    user_repository,
+    auth_session_repository,
+    session_ttl_seconds=settings.auth_session_ttl_seconds,
+)
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:  # noqa: B008
+    """FastAPI dependency: resolve the authenticated user from the session cookie.
+
+    Raises 401 ``not_authenticated`` when no valid session is present. This is
+    the single authorization gate for protected endpoints — frontend route
+    guards are UX only.
+    """
+    token = request.cookies.get(settings.auth_cookie_name)
+    user = auth_service.resolve_session_user(db, token)
+    if user is None:
+        raise AuthenticationError("authentication required")
+    return user
 
 
 def _build_llm() -> ChatOpenAI | ChatNVIDIA | None:

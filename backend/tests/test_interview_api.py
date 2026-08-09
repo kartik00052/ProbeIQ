@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -12,10 +14,26 @@ STRONG_ANSWER = (
     "before locking the design."
 )
 
+TEST_PASSWORD = "S3cure!Pass123"
+
+
+def _unique_email(prefix: str) -> str:
+    return f"{prefix}-{uuid4().hex}@example.com"
+
+
+def _register(client: TestClient, prefix: str = "interview") -> None:
+    response = client.post(
+        "/api/auth/register",
+        json={"email": _unique_email(prefix), "password": TEST_PASSWORD},
+    )
+    assert response.status_code == 201
+
 
 @pytest.fixture(scope="module")
 def client() -> TestClient:
-    return TestClient(app)
+    test_client = TestClient(app)
+    _register(test_client)
+    return test_client
 
 
 class _Ids:
@@ -151,3 +169,96 @@ def test_cors_denies_unlisted_origin(client: TestClient) -> None:
     )
     assert response.status_code == 400
     assert response.headers.get("access-control-allow-origin") is None
+
+
+def test_register_response_never_exposes_password_or_hash(client: TestClient) -> None:
+    email = _unique_email("no-leak")
+    response = client.post(
+        "/api/auth/register",
+        json={"email": email, "password": TEST_PASSWORD},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert set(body.keys()) == {"id", "email"}
+    assert "password" not in body
+    assert "password_hash" not in body
+    assert "hash" not in body
+    assert body["email"] == email
+
+
+def test_unauthenticated_start_rejected() -> None:
+    anonymous = TestClient(app)
+    response = anonymous.post(
+        "/api/interview",
+        json={
+            "sessionId": "unauth-start",
+            "candidate": {
+                "member": {
+                    "id": "UNAUTH-1",
+                    "name": "No Auth",
+                    "jobRole": "ML Engineer",
+                    "yearsExperience": 1,
+                    "education": "BSc",
+                    "status": "ACTIVE",
+                },
+                "missions": [],
+                "signals": {"commitDays": 1, "missionsCompleted": 0, "missionsFirstTry": 0},
+            },
+        },
+    )
+    assert response.status_code == 401
+    assert response.json()["error"] == "not_authenticated"
+
+
+def test_unauthenticated_turn_rejected(client: TestClient) -> None:
+    anonymous = TestClient(app)
+    response = anonymous.post(
+        "/api/interview",
+        json={"sessionId": "unauth-turn", "message": "Hello"},
+    )
+    assert response.status_code == 401
+    assert response.json()["error"] == "not_authenticated"
+
+
+def test_interview_ownership_enforced(client: TestClient, candidate_repository) -> None:
+    session_id = _start(client, candidate_repository)
+
+    intruder = TestClient(app)
+    _register(intruder, prefix="intruder")
+    response = intruder.post(
+        "/api/interview",
+        json={"sessionId": session_id, "message": STRONG_ANSWER},
+    )
+    assert response.status_code == 403
+    assert response.json()["error"] == "forbidden"
+
+    owner_turn = client.post(
+        "/api/interview",
+        json={"sessionId": session_id, "message": "Yes"},
+    )
+    assert owner_turn.status_code == 200
+
+
+def test_unknown_session_still_404_authenticated(client: TestClient) -> None:
+    response = client.post("/api/interview", json={"sessionId": "does-not-exist", "message": "Hello"})
+    assert response.status_code == 404
+    assert response.json()["error"] == "session_not_found"
+
+
+def test_logout_revokes_session_and_blocks_protected_requests() -> None:
+    user_client = TestClient(app)
+    _register(user_client, prefix="logout")
+
+    me_before = user_client.get("/api/auth/me")
+    assert me_before.status_code == 200
+    assert me_before.json()["user"] is not None
+
+    logout = user_client.post("/api/auth/logout")
+    assert logout.status_code == 200
+
+    me_after = user_client.get("/api/auth/me")
+    assert me_after.status_code == 200
+    assert me_after.json()["user"] is None
+
+    blocked = user_client.post("/api/interview", json={"sessionId": "after-logout", "message": "Hello"})
+    assert blocked.status_code == 401

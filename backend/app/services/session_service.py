@@ -4,6 +4,7 @@ from app.agents.evaluation_agent import AnswerEvaluator
 from app.agents.feedback_agent import FeedbackGenerator
 from app.agents.question_agent import QuestionGenerator
 from app.core.exceptions import (
+    AuthorizationError,
     InterviewEngineError,
     InvalidRequestError,
     ProbeIQError,
@@ -64,20 +65,31 @@ class SessionService:
             hard_max_questions=hard_max_questions,
         )
 
-    def start(self, session_id: str, candidate: Candidate) -> InterviewSession:
+    def start(
+        self, session_id: str, candidate: Candidate, *, owner_user_id: str | None = None
+    ) -> InterviewSession:
         if self._store.exists(session_id):
             raise SessionConflictError(f"session '{session_id}' already exists")
         result = self._invoke(
             lambda: self._graph.invoke({"action": "start", "session_id": session_id, "candidate": candidate})
         )
         session = self._session_from(result)
+        if owner_user_id is not None:
+            session.owner_user_id = owner_user_id
         self._store.create(session.model_copy(deep=True))
         return session
 
-    def answer(self, session_id: str, message: str) -> InterviewSession:
+    def answer(
+        self, session_id: str, message: str, *, owner_user_id: str | None = None
+    ) -> InterviewSession:
         if not message or not message.strip():
             raise InvalidRequestError("message must not be empty")
         current = self._store.get(session_id)
+        # Ownership enforcement: an owned session may only be driven by its owner.
+        # Unowned sessions (created outside the authenticated API, e.g. unit
+        # tests) keep the legacy open behavior.
+        if current.owner_user_id is not None and current.owner_user_id != owner_user_id:
+            raise AuthorizationError("session does not belong to the current user")
         if current.interview_complete:
             raise SessionCompletedError(f"session '{session_id}' is already complete")
         result = self._invoke(

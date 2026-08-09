@@ -3,4 +3,6 @@ export const ROUTES = {
   setup: '/setup',
   interview: '/interview',
   complete: '/complete',
+  login: '/login',
+  register: '/register',
 } as const

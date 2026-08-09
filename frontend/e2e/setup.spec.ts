@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { attachErrorCollector } from './helpers'
+import { attachErrorCollector, signIn } from './helpers'
 
 test('setup loads with the sample profile prefilled and starts the interview', async ({ page }) => {
   const errors = attachErrorCollector(page)
+  await signIn(page)
   await page.goto('/setup')
   const textarea = page.getByLabel('Candidate profile JSON')
   await expect(textarea).toBeVisible()
@@ -15,6 +16,7 @@ test('setup loads with the sample profile prefilled and starts the interview', a
 
 test('invalid JSON shows an inline error and stays on setup', async ({ page }) => {
   const errors = attachErrorCollector(page)
+  await signIn(page)
   await page.goto('/setup')
   await page.getByLabel('Candidate profile JSON').fill('{ definitely not valid json')
   await page.getByRole('button', { name: 'Begin interview' }).click()

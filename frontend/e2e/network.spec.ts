@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
   attachErrorCollector,
+  signIn,
   slowDownAnswers,
   startInterview,
   submitAnswer,
@@ -68,6 +69,7 @@ test('landing and setup produce no 4xx/5xx or CORS failures', async ({ page }) =
     if (/cors/i.test(msg.text()) && msg.type() === 'error') corsErrors.push(msg.text())
   })
 
+  await signIn(page)
   await page.goto('/')
   await expect(page.getByRole('heading', { name: /Prove your skills/i })).toBeVisible()
   await page.getByRole('link', { name: 'Begin interview' }).click()

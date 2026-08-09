@@ -60,3 +60,28 @@ class InterviewEngineError(ProbeIQError):
 class LLMConfigurationError(ProbeIQError):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     code = "llm_configuration_error"
+
+
+class AuthenticationError(ProbeIQError):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    code = "not_authenticated"
+
+
+class InvalidCredentialsError(ProbeIQError):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    code = "invalid_credentials"
+
+
+class AuthorizationError(ProbeIQError):
+    status_code = status.HTTP_403_FORBIDDEN
+    code = "forbidden"
+
+
+class DuplicateAccountError(ProbeIQError):
+    status_code = status.HTTP_409_CONFLICT
+    code = "account_already_exists"
+
+
+class InvalidPasswordError(ProbeIQError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    code = "invalid_password"

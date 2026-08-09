@@ -4,16 +4,26 @@ import { AppLayout } from '../../layouts/AppLayout'
 import { Logo } from '../../components/common/Logo'
 import { Button } from '../../components/ui/Button'
 import { staggerContainer, revealItemVariants } from '../../components/animations/variants'
+import { useAuth } from '../../hooks/useAuth'
 import { ROUTES } from '../../constants/routes'
 
 export default function LandingPage() {
+  const { status } = useAuth()
+
   return (
     <AppLayout>
       <nav className="flex justify-between py-2">
         <Logo />
-        <Link to={ROUTES.setup} className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline">
-          Skip intro
-        </Link>
+        {status === 'authenticated' && (
+          <Link to={ROUTES.setup} className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline">
+            Skip intro
+          </Link>
+        )}
+        {status === 'unauthenticated' && (
+          <Link to={ROUTES.login} className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline">
+            Sign in
+          </Link>
+        )}
       </nav>
 
       <motion.div

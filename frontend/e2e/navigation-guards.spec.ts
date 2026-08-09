@@ -8,9 +8,9 @@ import {
   waitForThinking,
 } from './helpers'
 
-test('direct /interview navigation without a session redirects to /setup', async ({ page }) => {
+test('direct /interview navigation without a session redirects to /login', async ({ page }) => {
   await page.goto('/interview')
-  await expect(page).toHaveURL(/\/setup/, { timeout: 15_000 })
+  await expect(page).toHaveURL(/\/login/, { timeout: 15_000 })
 })
 
 test('browser Back from /complete returns to /complete, never an active composer', async ({

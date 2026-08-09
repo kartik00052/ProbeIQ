@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { attachErrorCollector, hasHorizontalOverflow, startInterview } from './helpers'
+import {
+  attachErrorCollector,
+  hasHorizontalOverflow,
+  signIn,
+  startInterview,
+} from './helpers'
 
 const VIEWPORTS = [375, 390, 768, 1024, 1280, 1440]
 
@@ -9,6 +14,7 @@ for (const width of VIEWPORTS) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/')
     expect(await hasHorizontalOverflow(page)).toBe(false)
+    await signIn(page)
     await page.goto('/setup')
     expect(await hasHorizontalOverflow(page)).toBe(false)
     await startInterview(page)

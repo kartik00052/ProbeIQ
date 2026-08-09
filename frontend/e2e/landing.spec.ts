@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { attachErrorCollector, hasHorizontalOverflow } from './helpers'
 
-test('landing loads and the primary CTA navigates to /setup', async ({ page }) => {
+test('landing loads and the primary CTA sends guests to /login', async ({ page }) => {
   const errors = attachErrorCollector(page)
   await page.goto('/')
   await expect(
@@ -10,7 +10,8 @@ test('landing loads and the primary CTA navigates to /setup', async ({ page }) =
   const cta = page.getByRole('link', { name: 'Begin interview' })
   await expect(cta).toHaveAttribute('href', '/setup')
   await cta.click()
-  await expect(page).toHaveURL(/\/setup/)
+  await expect(page).toHaveURL(/\/login/)
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
   expect(errors).toEqual([])
 })
 

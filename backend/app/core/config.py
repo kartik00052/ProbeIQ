@@ -21,15 +21,35 @@ class Settings(BaseSettings):
     data_dir: Path = DEFAULT_DATA_DIR
     environment: str = "development"
 
-    # CORS allowed browser origins (comma-separated). The interview API carries no
-    # cookies or auth headers, so credentials stay disabled. Defaults to the Vite
-    # dev origin; set PROBEIQ_CORS_ALLOWED_ORIGINS to the deployed frontend
-    # origin(s) in production (e.g. https://app.example.com). Never use "*".
+    # CORS allowed browser origins (comma-separated). The API authenticates with an
+    # HTTP-only session cookie, so credentials are enabled and origins must stay
+    # explicit. Defaults to the Vite dev origin; set
+    # PROBEIQ_CORS_ALLOWED_ORIGINS to the deployed frontend origin(s) in
+    # production (e.g. https://app.example.com). Never use "*".
     cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
+
+    # Auth persistence: SQLite via SQLAlchemy. When PROBEIQ_DATABASE_URL is unset,
+    # a `probeiq.db` file is created under the data dir (app/data).
+    database_url: str | None = None
+
+    @property
+    def resolved_database_url(self) -> str:
+        if self.database_url:
+            return self.database_url
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        return f"sqlite:///{(self.data_dir / 'probeiq.db').as_posix()}"
+
+    # Authenticated-session cookie (HTTP-only).
+    auth_cookie_name: str = "probeiq_session"
+    auth_session_ttl_days: int = 14
+
+    @property
+    def auth_session_ttl_seconds(self) -> int:
+        return self.auth_session_ttl_days * 24 * 60 * 60
 
     # Adaptive interview engine constants (see .opencode/technical-spec.md).
     min_questions: int = 8

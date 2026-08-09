@@ -8,12 +8,14 @@ import { FeedbackSummary } from '../../components/feedback/FeedbackSummary'
 import { ImprovementSuggestions } from '../../components/feedback/ImprovementSuggestions'
 import { staggerContainer, revealItemVariants } from '../../components/animations/variants'
 import { useInterview } from '../../hooks/useInterview'
+import { useAuth } from '../../hooks/useAuth'
 import { ROUTES } from '../../constants/routes'
 import { toFeedbackViewModel } from '../../services/feedbackService'
 import { depthTransition } from '../../lib/motion'
 
 export default function Feedback() {
   const { status, feedback, transcript, reset } = useInterview()
+  const { logout } = useAuth()
   const navigate = useNavigate()
   const reducedMotion = useReducedMotion()
   const [revealed, setRevealed] = useState(reducedMotion ?? false)
@@ -35,21 +37,35 @@ export default function Feedback() {
     transcript.length === 0 ||
     window.confirm('Start over? Your current interview and report will be discarded.')
 
+  const signOut = async () => {
+    await logout()
+    navigate(ROUTES.landing)
+  }
+
   const view = toFeedbackViewModel(feedback)
 
   return (
     <AppLayout>
       <nav className="flex items-center justify-between py-2">
         <Logo />
-        <button
-          type="button"
-          onClick={() => {
-            if (confirmExit()) reset()
-          }}
-          className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline"
-        >
-          New interview
-        </button>
+        <div className="flex items-center gap-5">
+          <button
+            type="button"
+            onClick={signOut}
+            className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline"
+          >
+            Sign out
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (confirmExit()) reset()
+            }}
+            className="text-sm text-text-dim underline-offset-4 hover:text-accent hover:underline"
+          >
+            New interview
+          </button>
+        </div>
       </nav>
 
       <div className="flex flex-1 flex-col justify-center gap-8 py-10">
