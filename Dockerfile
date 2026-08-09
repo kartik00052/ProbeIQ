@@ -16,8 +16,10 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv==0.11.21
 
 # Install dependencies first so the layer is cached until the lock changes.
+# Installed into the system Python (/usr/local) rather than a venv: Render's
+# runtime did not expose /app/.venv/bin, so console scripts would 127.
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
-RUN uv sync --no-group dev --no-install-project --locked
+RUN uv sync --no-group dev --no-install-project --locked --system
 
 # Copy application source.
 COPY backend/app ./app
@@ -25,4 +27,4 @@ COPY backend/app ./app
 EXPOSE 8000
 
 # Actual entry point (backend/app/main.py): app = create_app()
-CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/usr/local/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

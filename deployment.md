@@ -31,7 +31,7 @@ Service fields:
 | Root Directory | *(empty)* |
 | Dockerfile Path | `Dockerfile` |
 | Docker Build Context Directory | *(empty — defaults to repo root)* |
-| Docker Command | `/bin/sh -c "uvicorn app.main:app --host 0.0.0.0 --port $PORT"` |
+| Docker Command | `/bin/sh -c "/usr/local/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT"` |
 | Health Check Path | *(empty — the app has no `/healthz`; a 404 there marks the service unhealthy)* |
 
 `/bin/sh -c` is required so Render's `$PORT` env var expands (the image's `CMD` hardcodes port 8000). `app/.venv/bin` is on `PATH`; `uv sync --no-group dev --no-install-project --locked` runs at build time.
