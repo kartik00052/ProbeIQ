@@ -20,20 +20,28 @@ Because the Vercel rewrite is same-origin, the browser talks only to the Vercel 
 
 The backend has no `requirements.txt` (uv-managed), so Render's default Python build will not work. Use the **Docker** runtime, which is already set up (`backend/Dockerfile`).
 
-1. Import the repo; choose **Docker** as the runtime.
-2. Root directory: `backend`.
-3. **Start command** (overrides the Dockerfile's hardcoded port 8000 so Render's `$PORT` is honored):
-   ```
-   uvicorn app.main:app --host 0.0.0.0 --port $PORT
-   ```
-   (`app/.venv/bin` is on `PATH` inside the image; `uv sync --no-group dev --no-install-project --locked` runs at build time.)
-4. Environment variables (see `backend/.env.example` and `backend/app/core/config.py`):
-   - `PROBEIQ_CORS_ALLOWED_ORIGINS` — `https://<frontend>.vercel.app` (never `*`; credentials are enabled).
-   - `PROBEIQ_LLM_ENABLED` — omit/false for the offline heuristic engine (works out of the box).
-   - Optional, only for LLM phrasing/eval: `PROBEIQ_OPENAI_API_KEY`, `PROBEIQ_OPENAI_BASE_URL`, `PROBEIQ_OPENAI_MODEL`, `PROBEIQ_NVIDIA_*` (see `.env.example`).
-5. Constraints to remember:
-   - **Single instance.** Interview sessions live in an in-memory store; a redeploy/restart drops in-progress interviews.
-   - **SQLite on Render's ephemeral disk.** Accounts/sessions reset on each redeploy/restart. Fine for a demo; durable accounts would need a managed Postgres (out of scope unless requested).
+Service fields (important — the **build context must point at `backend`**, or the Dockerfile's `COPY`s won't resolve and the build fails with "`/pyproject.toml` not found"):
+
+| Field | Value |
+|---|---|
+| Name / Language / Branch | `ProbeIQ` / `Docker` / `main` |
+| Root Directory | *(empty)* |
+| Dockerfile Path | `backend/Dockerfile` |
+| **Docker Build Context Directory** | **`backend`** |
+| Docker Command | `/bin/sh -c "uvicorn app.main:app --host 0.0.0.0 --port $PORT"` |
+| Health Check Path | *(empty — the app has no `/healthz`; a 404 there marks the service unhealthy)* |
+
+`/bin/sh -c` is required so Render's `$PORT` env var expands (the image's `CMD` hardcodes port 8000). `app/.venv/bin` is on `PATH`; `uv sync --no-group dev --no-install-project --locked` runs at build time.
+
+Environment variables (`PROBEIQ_` prefix, pydantic-settings — see `backend/.env.example`):
+- `PROBEIQ_ENVIRONMENT=production` — required; the session cookie only gets the `Secure` flag in production (`backend/app/api/routes/auth.py`).
+- `PROBEIQ_CORS_ALLOWED_ORIGINS` — the deployed frontend origin (e.g. `https://probe-iq.vercel.app`); never `*`.
+- `PROBEIQ_LLM_ENABLED=false` — and **delete all other `PROBEIQ_LLM_*` rows**, so startup never parses a bad LLM roster and no keys are uploaded.
+- `PROBEIQ_DATABASE_URL` — leave empty (SQLite under `app/data`); do not use Render's Postgres "Generate".
+
+Constraints:
+- **Single instance.** Interview sessions live in an in-memory store; a redeploy/restart drops in-progress interviews.
+- **SQLite on Render's ephemeral disk.** Accounts reset on each redeploy/restart. Fine for a demo; durable accounts would need a managed Postgres (out of scope unless requested).
 
 ## Frontend → Vercel
 
