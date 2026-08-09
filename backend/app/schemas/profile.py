@@ -26,6 +26,12 @@ class CandidateInterviewProfile(BaseModel):
     role: str
     experience: int
     role_is_technical: bool
+    # Personalization inputs (derived, never the raw payload): overall cohort
+    # signals let the interviewer calibrate depth beyond per-topic evidence.
+    education: str = ""
+    commit_days: int = 0
+    missions_completed: int = 0
+    missions_first_try: int = 0
     completed_days: list[int]
     failed_days: list[int]
     skipped_days: list[int]

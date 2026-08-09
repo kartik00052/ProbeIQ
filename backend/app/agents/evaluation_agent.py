@@ -370,12 +370,20 @@ class LLMAnswerEvaluator(AnswerEvaluator):
     the answer.
     """
 
-    def __init__(self, chat_model: object, prompt_builder=build_evaluation_prompt) -> None:
+    def __init__(
+        self,
+        chat_model: object,
+        prompt_builder=build_evaluation_prompt,
+        call_kwargs: dict | None = None,
+    ) -> None:
         self._chat = chat_model
         self._prompt_builder = prompt_builder
+        #: Per-call generation caps (max output length / thinking budget) so the
+        #: shared chat client never burns unbounded tokens on a short evaluation.
+        self._call_kwargs = call_kwargs
 
     def evaluate(self, context: EvaluationContext) -> Evaluation:
-        payload = invoke_json(self._chat, self._prompt_builder(context))
+        payload = invoke_json(self._chat, self._prompt_builder(context), call_kwargs=self._call_kwargs)
         try:
             evaluation = Evaluation.model_validate(payload)
         except Exception as exc:

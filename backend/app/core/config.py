@@ -97,6 +97,13 @@ class Settings(BaseSettings):
     llm_seed: int = 42
     # Bounded retry count for transient LLM failures (handled by the chat client).
     llm_max_retries: int = 2
+    # Per-request transport timeout (seconds) applied to each LLM chat client.
+    # Bounds how long a slow or congested provider can stall one call before the
+    # fallback roster moves to the next model (FallbackChatModel treats any
+    # failure -- including a timeout -- as a model failure). 60 preserves the
+    # LangChain provider default; a lower value (e.g. 30) keeps a pathological
+    # model from blocking the whole interview with a long serial roster wait.
+    llm_timeout_seconds: int = 60
 
 
 settings = Settings()

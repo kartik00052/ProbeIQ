@@ -45,16 +45,20 @@ def extract_json(text: str) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
-def invoke_json(chat_model: object, prompt: str) -> dict:
+def invoke_json(chat_model: object, prompt: str, *, call_kwargs: dict | None = None) -> dict:
     """Call ``chat_model.invoke`` with a system prompt and return parsed JSON.
 
-    Raises ``InterviewEngineError`` when the model is unavailable or its output
-    is not valid JSON, so callers can never commit a fabricated structure and a
-    failed call can be retried without corrupting session state.
+    ``call_kwargs`` are forwarded to the model invocation (e.g. per-call
+    ``max_tokens`` / ``max_completion_tokens`` caps that bound output length
+    and latency); every agent passes its own caps so a shared chat client stays
+    provider-agnostic. Raises ``InterviewEngineError`` when the model is
+    unavailable or its output is not valid JSON, so callers can never commit a
+    fabricated structure and a failed call can be retried without corrupting
+    session state.
     """
     messages = [("system", prompt)]
     try:
-        response = chat_model.invoke(messages)  # type: ignore[attr-defined]
+        response = chat_model.invoke(messages, **(call_kwargs or {}))  # type: ignore[attr-defined]
     except Exception as exc:
         raise InterviewEngineError("LLM call failed; no state was changed.") from exc
     payload = extract_json(extract_text(response))

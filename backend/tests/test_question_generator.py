@@ -155,6 +155,21 @@ def test_prompt_includes_candidate_personalization(knowledge_service) -> None:
     assert context.tools[0] in prompt
 
 
+def test_prompt_includes_overall_signals_for_calibration(knowledge_service) -> None:
+    context = _context(
+        knowledge_service,
+        education="BS Computer Science",
+        commit_days=22,
+        missions_completed=29,
+        missions_first_try=10,
+    )
+    prompt = build_question_prompt(context)
+    assert "education: BS Computer Science" in prompt
+    assert "22 commit days" in prompt
+    assert "29 missions completed" in prompt
+    assert "10 first-try completions" in prompt
+
+
 def test_llm_prompt_receives_previous_answer(knowledge_service) -> None:
     previous = "Hybrid retrieval fuses dense and sparse signals."
     context = _context(
@@ -254,3 +269,45 @@ def test_llm_generator_rejects_invalid_structure(knowledge_service) -> None:
     generator = LLMQuestionGenerator(_FakeChat('{"question": "only a question"}'))
     with pytest.raises(InterviewEngineError):
         generator.generate(_context(knowledge_service))
+
+
+class _KwargCapturingChat:
+    """Like _FakeChat but records the per-call kwargs forwarded to invoke."""
+
+    def __init__(self, response: str) -> None:
+        self.response = response
+        self.calls: list[tuple] = []
+
+    def invoke(self, messages, **kwargs):
+        self.calls.append((messages, kwargs))
+        return SimpleNamespace(content=self.response)
+
+
+def test_llm_generator_forwards_call_kwargs(knowledge_service) -> None:
+    payload = {
+        "question": "How would you combine SQL lookup and vector search for a claims query?",
+        "question_type": "scenario",
+        "curriculum_day": DAY,
+        "topic": TOPIC,
+        "difficulty": "intermediate",
+        "purpose": "test call kwargs",
+    }
+    chat = _KwargCapturingChat(json.dumps(payload))
+    generator = LLMQuestionGenerator(chat, call_kwargs={"max_tokens": 1024})
+    generator.generate(_context(knowledge_service))
+    assert chat.calls[0][1] == {"max_tokens": 1024}
+
+
+def test_llm_generator_without_call_kwargs_forwards_none(knowledge_service) -> None:
+    payload = {
+        "question": "How would you combine SQL lookup and vector search for a claims query?",
+        "question_type": "scenario",
+        "curriculum_day": DAY,
+        "topic": TOPIC,
+        "difficulty": "intermediate",
+        "purpose": "test call kwargs",
+    }
+    chat = _KwargCapturingChat(json.dumps(payload))
+    generator = LLMQuestionGenerator(chat)
+    generator.generate(_context(knowledge_service))
+    assert chat.calls[0][1] == {}

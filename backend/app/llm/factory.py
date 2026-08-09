@@ -87,6 +87,10 @@ def _resolve_specs(conf: Settings) -> list[dict[str, Any]]:
     if conf.llm_models:
         specs = [_coerce_spec(spec) for spec in conf.llm_models]
         _validate_specs(specs)
+        for spec in specs:
+            # Per-entry override wins; otherwise apply the global transport
+            # timeout so every client is bounded by PROBEIQ_LLM_TIMEOUT_SECONDS.
+            spec["timeout_seconds"] = spec["timeout_seconds"] or conf.llm_timeout_seconds
         return specs
     _validate_legacy(conf)
     return [
@@ -102,6 +106,7 @@ def _resolve_specs(conf: Settings) -> list[dict[str, Any]]:
             "max_retries": conf.llm_max_retries,
             "reasoning_budget": None,
             "enable_thinking": None,
+            "timeout_seconds": conf.llm_timeout_seconds,
         }
     ]
 
@@ -120,6 +125,7 @@ def _coerce_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "max_retries": spec.get("max_retries", 2),
         "reasoning_budget": spec.get("reasoning_budget"),
         "enable_thinking": spec.get("enable_thinking") or False,
+        "timeout_seconds": spec.get("timeout_seconds"),
     }
 
 
@@ -197,6 +203,7 @@ def _build_client(spec: dict[str, Any]) -> ChatOpenAI | ChatNVIDIA:
         top_p=spec["top_p"],
         seed=spec["seed"],
         max_retries=spec["max_retries"],
+        request_timeout=spec["timeout_seconds"],
     )
 
 
@@ -212,6 +219,7 @@ def _build_chat_nvidia(spec: dict[str, Any]) -> ChatNVIDIA:
             "max_completion_tokens": spec["max_tokens"],
             "top_p": spec["top_p"],
             "seed": spec["seed"],
+            "timeout": spec["timeout_seconds"],
         }
         if spec.get("reasoning_budget"):
             kwargs["reasoning_budget"] = spec["reasoning_budget"]
@@ -235,3 +243,33 @@ def _spec_base_url(spec: dict[str, Any]) -> str | None:
     if spec["provider"] == "nvidia":
         return NVIDIA_BASE_URL
     return None
+
+
+def generation_caps(conf: Settings, *, max_tokens: int) -> dict[str, Any] | None:
+    """Provider-correct per-call kwargs that bound output length and latency.
+
+    The ProbeIQ agents share one chat client but ask short questions and produce
+    short evaluations/feedback, so every invocation should cap its own completion
+    budget instead of inheriting a large constructor default. This helper maps
+    that cap to the field name the configured provider's API expects:
+
+    - ``nvidia``            -> ``max_completion_tokens``, plus a ``reasoning_budget``
+      clamped to ``max_tokens`` when a roster entry configured one (bounds thinking
+      on NVIDIA reasoning models).
+    - ``openai``/``openai-compatible`` -> ``max_tokens``.
+
+    Returns ``None`` when the roster mixes providers (a single call-kwargs dict
+    cannot name both fields safely); those setups keep their constructor defaults.
+    """
+    specs = _resolve_specs(conf)
+    providers = {spec["provider"] for spec in specs}
+    if len(providers) != 1:
+        return None
+    provider = providers.pop()
+    if provider == "nvidia":
+        kwargs: dict[str, Any] = {"max_completion_tokens": max_tokens}
+        budgets = [spec["reasoning_budget"] for spec in specs if spec.get("reasoning_budget")]
+        if budgets:
+            kwargs["reasoning_budget"] = min(max_tokens, *budgets)
+        return kwargs
+    return {"max_tokens": max_tokens}

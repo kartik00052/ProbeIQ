@@ -14,6 +14,12 @@ class QuestionContext(BaseModel):
     candidate_id: str
     role: str
     experience: int
+    # Overall candidate signals: education and cohort-wide completion stats used
+    # to calibrate question depth (never facts to be stated in the question).
+    education: str = ""
+    commit_days: int = 0
+    missions_completed: int = 0
+    missions_first_try: int = 0
     day: int
     topic: str
     module: str

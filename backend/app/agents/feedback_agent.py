@@ -120,12 +120,20 @@ class LLMFeedbackGenerator(FeedbackGenerator):
     reference a curriculum topic the interview did not cover.
     """
 
-    def __init__(self, chat_model: object, prompt_builder=build_feedback_prompt) -> None:
+    def __init__(
+        self,
+        chat_model: object,
+        prompt_builder=build_feedback_prompt,
+        call_kwargs: dict | None = None,
+    ) -> None:
         self._chat = chat_model
         self._prompt_builder = prompt_builder
+        #: Per-call generation caps (max output length / thinking budget) so the
+        #: shared chat client never burns unbounded tokens on short feedback.
+        self._call_kwargs = call_kwargs
 
     def generate(self, session: InterviewSession) -> InterviewFeedback:
-        payload = invoke_json(self._chat, self._prompt_builder(session))
+        payload = invoke_json(self._chat, self._prompt_builder(session), call_kwargs=self._call_kwargs)
         try:
             feedback = InterviewFeedback.model_validate(payload)
         except Exception as exc:

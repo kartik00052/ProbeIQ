@@ -10,6 +10,16 @@ def test_sarah_profile_rollup(candidate_repository, analysis_service, profile_se
     assert [t.day for t in profile.uncertain_topics if t.outcome == "skipped"] == [29]
 
 
+def test_profile_carries_education_and_overall_signals(
+    candidate_repository, analysis_service, profile_service
+) -> None:
+    profile = profile_service.build(analysis_service.analyze(candidate_repository.get("CAND-001")))
+    assert profile.education == "MS Computer Science"
+    assert profile.commit_days == 28
+    assert profile.missions_completed == 30
+    assert profile.missions_first_try == 20
+
+
 def test_profile_does_not_embed_raw_candidate_payload(candidate_repository, analysis_service, profile_service) -> None:
     profile = profile_service.build(analysis_service.analyze(candidate_repository.get("CAND-001")))
     serialized = profile.model_dump()

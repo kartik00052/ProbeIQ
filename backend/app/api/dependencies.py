@@ -21,7 +21,7 @@ from app.agents.question_agent import (
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import AuthenticationError
-from app.llm.factory import get_llm
+from app.llm.factory import generation_caps, get_llm
 from app.llm.fallback import FallbackChatModel
 from app.models.user import User
 from app.repositories.auth_session_repository import AuthSessionRepository
@@ -86,7 +86,7 @@ def _question_generator(
     llm: ChatOpenAI | ChatNVIDIA | FallbackChatModel | None,
 ) -> QuestionGenerator:
     if llm is not None:
-        return LLMQuestionGenerator(llm)
+        return LLMQuestionGenerator(llm, call_kwargs=generation_caps(settings, max_tokens=1024))
     return DeterministicQuestionGenerator()
 
 
@@ -94,7 +94,7 @@ def _answer_evaluator(
     llm: ChatOpenAI | ChatNVIDIA | FallbackChatModel | None,
 ) -> AnswerEvaluator:
     if llm is not None:
-        return LLMAnswerEvaluator(llm)
+        return LLMAnswerEvaluator(llm, call_kwargs=generation_caps(settings, max_tokens=2048))
     return DeterministicAnswerEvaluator()
 
 
@@ -102,7 +102,7 @@ def _feedback_generator(
     llm: ChatOpenAI | ChatNVIDIA | FallbackChatModel | None,
 ) -> FeedbackGenerator:
     if llm is not None:
-        return LLMFeedbackGenerator(llm)
+        return LLMFeedbackGenerator(llm, call_kwargs=generation_caps(settings, max_tokens=2048))
     return DeterministicFeedbackGenerator()
 
 

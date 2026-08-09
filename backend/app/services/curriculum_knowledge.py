@@ -28,8 +28,19 @@ class CurriculumKnowledgeService:
 
     def __init__(self, curriculum_repository: CurriculumRepository) -> None:
         self._curriculum = curriculum_repository
+        self._knowledge_cache: CurriculumKnowledge | None = None
 
     def knowledge(self) -> CurriculumKnowledge:
+        """Return the built knowledge graph, constructed once and reused.
+
+        The curriculum is static at runtime, so the node graph is memoized on the
+        service instead of being rebuilt on every question/evaluation turn.
+        """
+        if self._knowledge_cache is None:
+            self._knowledge_cache = self._build_knowledge()
+        return self._knowledge_cache
+
+    def _build_knowledge(self) -> CurriculumKnowledge:
         curriculum: Curriculum = self._curriculum.load()
         module_by_day: dict[int, Module] = {}
         for module in curriculum.modules:

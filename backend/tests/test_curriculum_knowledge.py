@@ -23,3 +23,7 @@ def test_knowledge_connects_module_to_days(knowledge_service) -> None:
 
 def test_unknown_day_returns_none(knowledge_service) -> None:
     assert knowledge_service.node(99) is None
+
+
+def test_knowledge_is_memoized(knowledge_service) -> None:
+    assert knowledge_service.knowledge() is knowledge_service.knowledge()

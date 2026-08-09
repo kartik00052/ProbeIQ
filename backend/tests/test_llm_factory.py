@@ -20,7 +20,7 @@ from pydantic import SecretStr
 
 from app.core.config import Settings
 from app.core.exceptions import LLMConfigurationError
-from app.llm.factory import NVIDIA_BASE_URL, get_llm
+from app.llm.factory import NVIDIA_BASE_URL, generation_caps, get_llm
 from app.llm.fallback import FallbackChatModel
 
 _FAKE_KEY = "nvapi-fake-key-never-used-outside-tests"
@@ -298,3 +298,119 @@ def test_fallback_all_fail_raises_sanitized_error() -> None:
     assert "RuntimeError" in message
     # The underlying exception detail (which could echo payloads) is not leaked.
     assert "underlying failure" not in message
+
+
+# --- per-call generation caps -------------------------------------------------
+
+
+def test_generation_caps_nvidia_uses_max_completion_tokens() -> None:
+    caps = generation_caps(_settings(), max_tokens=1024)
+    assert caps == {"max_completion_tokens": 1024}
+
+
+def test_generation_caps_nvidia_omits_reasoning_budget_when_unset() -> None:
+    caps = generation_caps(_settings(), max_tokens=2048)
+    assert caps == {"max_completion_tokens": 2048}
+
+
+def test_generation_caps_nvidia_clamps_reasoning_budget() -> None:
+    conf = _roster_settings(
+        llm_models=[
+            {
+                "provider": "nvidia",
+                "model": "nvidia/nemotron-3-ultra-550b-a55b",
+                "api_key": _FAKE_KEY,
+                "reasoning_budget": 16384,
+            }
+        ]
+    )
+    caps = generation_caps(conf, max_tokens=2048)
+    assert caps == {"max_completion_tokens": 2048, "reasoning_budget": 2048}
+
+
+def test_generation_caps_openai_uses_max_tokens() -> None:
+    caps = generation_caps(_settings(llm_provider="openai", llm_base_url=""), max_tokens=1024)
+    assert caps == {"max_tokens": 1024}
+
+
+def test_generation_caps_openai_compatible_uses_max_tokens() -> None:
+    conf = _settings(
+        llm_provider="openai-compatible",
+        llm_base_url="http://127.0.0.1:8787/v1",
+    )
+    caps = generation_caps(conf, max_tokens=1024)
+    assert caps == {"max_tokens": 1024}
+
+
+def test_generation_caps_mixed_roster_returns_none(monkeypatch) -> None:
+    monkeypatch.setattr("app.llm.factory.ChatNVIDIA", _FakeChatNVIDIA)
+    conf = _roster_settings(
+        llm_models=[
+            {"provider": "nvidia", "model": "z-ai/glm-5.2", "api_key": _FAKE_KEY},
+            {"provider": "openai", "model": "gpt-x", "api_key": "sk-not-real"},
+        ]
+    )
+    assert generation_caps(conf, max_tokens=1024) is None
+
+
+# --- provider request timeout -------------------------------------------------
+
+
+def test_timeout_seconds_default_preserves_provider_default() -> None:
+    assert _settings().llm_timeout_seconds == 60
+
+
+def test_nvidia_client_receives_configured_timeout(monkeypatch) -> None:
+    monkeypatch.setattr("app.llm.factory.ChatNVIDIA", _FakeChatNVIDIA)
+    llm = get_llm(_settings(llm_timeout_seconds=30))
+    assert isinstance(llm, _FakeChatNVIDIA)
+    assert llm.kwargs["timeout"] == 30
+
+
+def test_openai_client_receives_configured_timeout() -> None:
+    llm = get_llm(
+        _settings(
+            llm_provider="openai-compatible",
+            llm_base_url="http://127.0.0.1:8787/v1",
+            llm_timeout_seconds=30,
+        )
+    )
+    assert isinstance(llm, ChatOpenAI)
+    assert llm.request_timeout == 30
+
+
+def test_roster_clients_receive_configured_timeout(monkeypatch) -> None:
+    monkeypatch.setattr("app.llm.factory.ChatNVIDIA", _FakeChatNVIDIA)
+    llm = get_llm(_roster_settings(llm_timeout_seconds=30))
+    assert isinstance(llm, FallbackChatModel)
+    assert llm._clients[0].kwargs["timeout"] == 30
+    assert llm._clients[1].kwargs["timeout"] == 30
+
+
+def test_roster_entry_can_override_the_global_timeout(monkeypatch) -> None:
+    monkeypatch.setattr("app.llm.factory.ChatNVIDIA", _FakeChatNVIDIA)
+    conf = _roster_settings(
+        llm_timeout_seconds=30,
+        llm_models=[
+            {
+                "provider": "nvidia",
+                "model": "z-ai/glm-5.2",
+                "api_key": _FAKE_KEY,
+                "timeout_seconds": 12,
+            },
+            {
+                "provider": "nvidia",
+                "model": "nvidia/nemotron-3-ultra-550b-a55b",
+                "api_key": "nvapi-second-key-not-a-real-secret",
+            },
+        ],
+    )
+    llm = get_llm(conf)
+    assert isinstance(llm, FallbackChatModel)
+    assert llm._clients[0].kwargs["timeout"] == 12
+    assert llm._clients[1].kwargs["timeout"] == 30
+
+
+def test_timeout_does_not_change_generation_caps() -> None:
+    caps = generation_caps(_settings(llm_timeout_seconds=30), max_tokens=1024)
+    assert caps == {"max_completion_tokens": 1024}

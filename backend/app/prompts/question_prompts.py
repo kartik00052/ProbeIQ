@@ -16,12 +16,19 @@ def build_question_prompt(context: QuestionContext) -> str:
     previous_question = context.previous_question or "none (this is the first question)"
     previous_answer = context.previous_answer or "none (this is the first question)"
     previous_evaluation = context.previous_evaluation or "none"
+    education = context.education or "not provided"
+    signals = (
+        f"{context.commit_days} commit days, {context.missions_completed} missions completed, "
+        f"{context.missions_first_try} first-try completions"
+    )
 
     return f"""You are the technical interviewer for ProbeIQ. Ask one interview question.
 
 Candidate context:
 - role: {context.role}
 - experience: {context.experience} years
+- education: {education}
+- overall cohort signals (calibration only): {signals}
 - evidence the candidate completed this curriculum topic: {evidence}
 - curriculum day {context.day} topic: {context.topic}
 - curriculum objectives:
@@ -41,12 +48,14 @@ Rules:
 2. Never claim the candidate built, used, or completed anything. If completion
    evidence is absent, phrase the question hypothetically ("How would you ..." /
    "Explain ...") and never say "you built", "your project", or "you have".
-3. Avoid generic one-word-definition questions ("What is X?") unless the
+3. Use education and overall cohort signals ONLY to calibrate how deep to push;
+   never restate them in the question.
+4. Avoid generic one-word-definition questions ("What is X?") unless the
    difficulty is foundational and a foundational check is required.
-4. Ask one specific, scenario-oriented question; prefer practical scenarios.
-5. If this is a follow-up (follow_up_index > 0), build on the candidate's
+5. Ask one specific, scenario-oriented question; prefer practical scenarios.
+6. If this is a follow-up (follow_up_index > 0), build on the candidate's
    previous answer and target the given probe focus.
-6. Return ONLY a JSON object with exactly these fields:
+7. Return ONLY a JSON object with exactly these fields:
 {{"question": str, "question_type": "conceptual"|"implementation"|"architecture"|"debugging"|"scenario"|"trade-off"|"production"|"follow-up", "curriculum_day": {context.day}, "topic": "{context.topic}", "difficulty": "{context.difficulty}", "purpose": str}}
 Do not include any text outside the JSON object.
 """
