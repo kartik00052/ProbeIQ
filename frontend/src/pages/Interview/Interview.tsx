@@ -9,6 +9,7 @@ import { QuestionCard } from '../../components/interview/QuestionCard'
 import { AnswerInput } from '../../components/interview/AnswerInput'
 import { ErrorMessage } from '../../components/common/ErrorMessage'
 import { useInterview } from '../../hooks/useInterview'
+import { useInterviewStore } from '../../stores/interviewStore'
 import { ROUTES } from '../../constants/routes'
 
 export default function Interview() {
@@ -18,7 +19,18 @@ export default function Interview() {
 
   useEffect(() => {
     if (status === 'complete') navigate(ROUTES.complete)
+    else if (status === 'idle') navigate(ROUTES.setup)
   }, [status, navigate])
+
+  useEffect(() => {
+    const onPopState = () => {
+      const s = useInterviewStore.getState().status
+      if (s === 'complete') navigate(ROUTES.complete, { replace: true })
+      else if (s === 'idle') navigate(ROUTES.setup, { replace: true })
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [navigate])
 
   useEffect(() => {
     const el = historyEndRef.current

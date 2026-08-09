@@ -802,7 +802,7 @@ Honest boundaries of the current implementation:
 - **`DataLoadError` leaks absolute paths** in 500 responses (open audit finding P1-2).
 - **Frontend container image not shipped** — only the backend is Dockerized.
 - **Minor:** one pre-existing Starlette/httpx deprecation warning surfaces during pytest.
-- **Stale docs:** `.opencode/PROJECT.md` and `.opencode/BACKEND.md` describe earlier phases (e.g. "42 tests", empty frontend); the repository guide `AGENTS.md` also predates the implemented frontend and CORS. The current state is this README, `backend/AUDIT_REPORT.md`, and `explanation.md`.
+- **`backend/main.py` is a dead stub** — the real entrypoint is `backend/app/main.py` (`app.main:app`).
 
 ---
 

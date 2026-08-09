@@ -9,88 +9,100 @@ The submission contract is defined in `technical-spec.md`: a single
 unauthenticated `POST /api/interview` endpoint, keyed by `sessionId`.
 
 ## High-level architecture
-- **Backend** (`backend/`): FastAPI service receiving the interview requests.
-  Implements the data foundation (schemas, repositories, deterministic
-  analysis/selection services) and a placeholder `/api/interview` route.
-- **Frontend** (`frontend/`): client application. Currently an empty source
-  scaffold (no runnable code).
-- **AI/agent layer**: planned (LangGraph orchestration, agents, prompts). Not yet
-  implemented; only empty placeholder modules exist.
+- **Backend** (`backend/`): FastAPI service running the real adaptive interview
+  engine. A deterministic LangGraph orchestration core drives candidate
+  analysis, topic planning, question generation, evaluation, and feedback; an
+  optional LLM layer only rephrases questions and grades answers (see
+  `BACKEND.md`).
+- **Frontend** (`frontend/`): runnable Vite + React app. Single package — the
+  toolchain lives at the `frontend/` root and the application source in
+  `frontend/src/` (see `FRONTEND.md`).
 
 ## Repository structure
 - `.opencode/` — instructions for AI agents (`PROJECT.md`, `AGENT.md`, `GIT.md`,
   `FRONTEND.md`, `BACKEND.md`, `RULES.md`), the `technical-spec.md` API contract,
-  sample data (`candidates.json`, `curriculum.json`), and the `ui-ux-pro-max`
-  UI/UX skill.
+  sample data (`candidates.json`, `curriculum.json`), and vendored skills
+  (`skills/impeccable`, `skills/ui-ux-pro-max`).
 - `backend/` — FastAPI application (see `BACKEND.md`).
-- `frontend/` — client application scaffold (see `FRONTEND.md`).
+- `frontend/` — client application (see `FRONTEND.md`).
 
 ## Frontend responsibility
 Render the interview experience: candidate setup, conversation, and final
-feedback screens. See `FRONTEND.md`. **Not implemented yet** — the `src/` tree
-currently contains empty files only.
+feedback screens. Implemented in `frontend/src/` (pages, components, hooks, api,
+services, stores, types, constants, router, lib, utils, layouts). Verified with
+`npm run build`, `npm run lint`, and a Playwright e2e suite in `frontend/e2e/`.
+See `FRONTEND.md`.
 
 ## Backend responsibility
 Expose `POST /api/interview`, validate the request contract, maintain interview
-state per `sessionId`, run the interview (question generation, evaluation,
-feedback), and return responses. See `BACKEND.md`. Only the foundation is
-implemented so far.
+state per `sessionId`, run the interview (candidate analysis, topic planning,
+question generation, answer evaluation, feedback), and return responses. See
+`BACKEND.md`. The engine is implemented and test-covered.
 
-## AI/agent responsibility (planned)
-- Analyze candidate learning evidence.
-- Select relevant curriculum topics for questioning.
-- Generate questions, evaluate answers, generate feedback.
-
-No agent code is implemented. The deterministic evidence/selection services in
-`backend/app/services/` are the only implemented analysis logic.
+## Interview engine (implemented)
+- LangGraph orchestration graph (`backend/app/orchestration/graph.py`) driving
+  nodes: analyze candidate, plan interview, generate question, decide next step,
+  evaluate response, generate feedback.
+- Deterministic services compute candidate analysis and curriculum-day/topic
+  selection; question generation and evaluation fall back to templates and
+  heuristics so the engine runs fully offline by default.
+- Optional LLM layer (`backend/app/llm/factory.py`) rephrases questions and
+  grades answers. Providers: `openai-compatible` (default), `openai`, `nvidia`
+  (NVIDIA-hosted GLM). The LLM is enabled only via `PROBEIQ_LLM_*` config and is
+  never required for a working interview.
 
 ## Data flow (verified)
 `backend/app/data/candidates.json` + `curriculum.json`
 → repositories (`app/repositories/`) validate and load
-→ services (`app/services/`) compute deterministic candidate analysis and
-  curriculum-day selection
-→ `/api/interview` route returns a placeholder dev response (no real interview
-  yet).
+→ services (`app/services/`) compute deterministic candidate analysis,
+  curriculum-day selection, and topic planning
+→ LangGraph interview graph runs the adaptive interview (deterministic when the
+  LLM is disabled)
+→ `app/repositories/session_store.py` persists per-`sessionId` state in memory
+→ `/api/interview` returns `{ reply, done, feedback? }`.
 
 ## Technology stack (verified)
 Backend:
-- Python >= 3.13 (declared in `backend/pyproject.toml`).
-- FastAPI, Pydantic v2, pydantic-settings (used by implemented code).
-- pytest, ruff, mypy (configured; currently passing).
-- Declared but **not yet used**: langchain, langgraph, langchain-openai,
-  asyncpg, redis, sqlalchemy, httpx, uvicorn, python-dotenv.
+- Python >= 3.13 (declared in `backend/pyproject.toml`), FastAPI, Pydantic v2,
+  pydantic-settings (`PROBEIQ_` env prefix), langgraph, langchain-openai /
+  langchain-nvidia-ai-endpoints (LLM providers), uvicorn.
+- Tooling: pytest (174 passed, 3 skipped), ruff, mypy — all clean.
+- Declared but **not used** by app code: asyncpg, redis, sqlalchemy, httpx,
+  python-dotenv. Do not treat them as part of the running system.
 
 Frontend:
-- Declared dependencies in `frontend/package.json`: axios, framer-motion,
-  react-router-dom, zod, zustand; eslint toolchain under `devDependencies`.
-- React, TypeScript, and Vite are **not currently declared** in `package.json`;
-  the scaffold uses `.tsx`/`.ts` files, but their stack is not verified at the
-  dependency level.
+- Single package at `frontend/`: React 19, TypeScript, Vite 8, Tailwind v4,
+  framer-motion, zustand, axios, react-router-dom, zod, three +
+  @react-three/fiber + @react-three/drei (lazy-loaded WebGL presence).
+- Toolchain (scripts `dev`/`build`/`lint`/`preview`/`test:e2e`,
+  `vite.config.ts`, `index.html`, tsconfigs, eslint) lives at the `frontend/`
+  root. Verified: `npm run build` and `npm run lint` pass.
 
 ## Current implementation status
 Implemented:
-- Backend data schemas, JSON repositories, deterministic candidate analysis and
-  curriculum-day selection services, config, typed exceptions, error handlers.
-- `POST /api/interview` endpoint that validates the contract and returns a
-  clearly-marked dev placeholder reply.
-- Test suite (42 tests) covering schemas, repositories, services, and the API.
-  Verified passing via pytest; ruff and mypy clean.
+- Backend: interview engine (LangGraph orchestration, agents, prompts, LLM
+  factory), JSON repositories, in-memory session store, deterministic
+  analysis/selection/planning services, config, typed exceptions, error
+  handlers, environment-configured CORS.
+- `POST /api/interview` validating the contract and running the full interview,
+  returning `{ reply, done, feedback? }`.
+- Test suite (174 tests) covering schemas, repositories, services, orchestration,
+  and the API; 3 skipped tests are live-LLM only.
+- Frontend: runnable app (landing, candidate setup, interview, feedback pages),
+  zustand store, API client/services, WebGL presence with fallbacks, reduced
+  motion. Verified build/lint and a Playwright e2e suite (22 tests).
 
 Planned / not yet implemented:
-- Real interview engine (question generation, evaluation, feedback).
-- LangGraph orchestration graph and nodes (`app/orchestration/`), agents
-  (`app/agents/`), prompts (`app/prompts/`), session state persistence.
-- Database / Redis integration (declared but unused).
-- All frontend application code (empty scaffold).
+- Database / Redis persistence (declared but unused). Sessions are in-memory and
+  lost on server restart.
 
 ## Known limitations
-- The interview route returns a placeholder reply; sessions do not yet maintain
-  real state or produce questions/feedback.
-- Frontend has no runnable code.
-- `frontend/node_modules/` is tracked in Git (~6807 files) despite `.gitignore`;
-  this inflates the repository (cleanup pending — see `GIT.md`).
+- Session state is process-local (`InMemorySessionStore`): a server restart drops
+  all sessions.
+- No authentication/authorization on the API (by design; single unauthenticated
+  endpoint).
+- LLM phrasing/eval is optional and not exercised by the default test suite.
 
 ## Not currently verified
-- End-to-end frontend ↔ backend communication.
-- Any real LLM/agent behavior.
-- A Vite/React/TypeScript frontend build configuration.
+- Live LLM behavior (the 3 skipped tests require `PROBEIQ_LIVE_LLM_TEST=true`
+  and a working provider/key).

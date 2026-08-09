@@ -54,9 +54,7 @@ destructive and ask the user.
 - After a push, verify the push result.
 
 ## Notes specific to this repository
-- `frontend/node_modules/` (~6807 files) is currently tracked despite being
-  listed in `.gitignore`. Do NOT attempt Git cleanup autonomously; propose it to
-  the user. A safe removal is `git rm -r --cached frontend/node_modules`
-  (`--cached` keeps the local folder), done only with explicit user approval.
-- The current commit `3b18b22` is pushed to `origin/main`. Keep it intact.
-- Do not modify existing commits or rewrite history.
+- `frontend/node_modules/` is untracked (removed from tracking; kept local via
+  `.gitignore`).
+- Keep `main` tracking `origin/main`. Do not modify existing commits or rewrite
+  history.

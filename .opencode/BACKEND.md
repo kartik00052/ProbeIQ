@@ -3,28 +3,37 @@
 ## Verified stack (as of this document)
 - Python >= 3.13 (`backend/pyproject.toml`).
 - FastAPI application entrypoint: `backend/app/main.py` (app factory + exception
-  handlers), router mounted at `backend/app/api/routes/interview.py`.
+  handlers + CORS), router mounted at `backend/app/api/routes/interview.py`.
 - Pydantic v2 schemas (`backend/app/schemas/`) and pydantic-settings config
   (`backend/app/core/config.py`, `PROBEIQ_` env prefix).
 - JSON-backed repositories (`backend/app/repositories/`) reading
   `backend/app/data/curriculum.json` and `candidates.json`.
-- Deterministic services (`backend/app/services/`): candidate analysis and
-  curriculum-day selection.
-- Tooling: pytest (42 tests passing), ruff, mypy.
-- Declared but **not yet used** in code: langchain, langchain-openai, langgraph,
-  asyncpg, redis, sqlalchemy, httpx, uvicorn, python-dotenv. Do not claim these
-  are part of the running system.
+- Deterministic services (`backend/app/services/`): candidate analysis,
+  curriculum-day selection, topic planning, and the interview engine service.
+- Interview engine: LangGraph graph (`app/orchestration/graph.py`) with nodes
+  for analyze / plan / generate / decide / evaluate / feedback, prompt templates
+  (`app/prompts/`), and agents (`app/agents/`). Runs offline and deterministically
+  by default (heuristic generator/evaluator); the LLM layer is optional.
+- LLM factory (`app/llm/factory.py`): `openai` / `openai-compatible` →
+  ChatOpenAI, `nvidia` → ChatNVIDIA (NVIDIA-hosted GLM).
+- Tooling: pytest (174 passed, 3 skipped — the skips are live-LLM only), ruff,
+  mypy.
+- Declared but **not used** in code: asyncpg, redis, sqlalchemy, httpx,
+  python-dotenv. Do not claim these are part of the running system.
 
 ## Architecture
 - Routes → services → repositories. Keep business logic out of route handlers.
 - `app/api/routes/` — HTTP endpoints and request/response shaping.
-- `app/services/` — business logic (analysis, selection; later interview engine).
-- `app/repositories/` — data access (currently JSON files).
+- `app/services/` — business logic (analysis, selection, planning, interview).
+- `app/repositories/` — data access (JSON files) and `session_store.py`
+  (in-memory per-`sessionId` session persistence).
 - `app/schemas/` — Pydantic models for data and API contracts.
 - `app/core/` — config, exceptions (`ProbeIQError` hierarchy), logging
-  (`logging.py` is an empty placeholder).
-- `app/orchestration/`, `app/agents/`, `app/prompts/` — empty placeholders for
-  the planned LangGraph interview engine. Do not treat them as implemented.
+  (`logging.py` is still an empty placeholder).
+- `app/orchestration/` — the LangGraph interview graph and nodes; implemented.
+- `app/agents/`, `app/prompts/` — LLM-backed agents and prompt templates;
+  implemented, but only exercised when the LLM is enabled.
+- `app/llm/` — ChatOpenAI / ChatNVIDIA factory; implemented.
 
 ## API rules
 - Do not invent API endpoints. The contract is defined in
@@ -51,9 +60,12 @@
   files and raises typed `DataLoadError`s on failure.
 - Do not invent database models.
 
-## Agent/orchestration rules (when implemented later)
-- Orchestration (LangGraph) nodes should be small and testable.
+## Agent/orchestration rules
+- Orchestration (LangGraph) nodes are small and testable.
 - Prompts live in `app/prompts/`; agents in `app/agents/`.
+- The deterministic controller decides WHAT to probe; the LLM only decides HOW
+  to phrase a question and how to judge an answer. Never make the interview
+  require an LLM — the offline heuristic path must always work.
 
 ## Error handling
 - Raise `ProbeIQError` subclasses for domain errors.
@@ -65,8 +77,10 @@
   (`backend/app/core/config.py`).
 - Never hardcode secrets.
 - Never commit `.env` files.
-- Use `.env.example` for documented environment variables. Existing example:
-  `PROBEIQ_DATA_DIR`, `PROBEIQ_ENVIRONMENT`.
+- Use `.env.example` for documented environment variables. Key variables:
+  `PROBEIQ_LLM_ENABLED`, `PROBEIQ_LLM_PROVIDER`, `PROBEIQ_LLM_MODEL`,
+  `PROBEIQ_LLM_BASE_URL`, `PROBEIQ_LLM_API_KEY`, `PROBEIQ_LLM_MAX_RETRIES`,
+  `PROBEIQ_CORS_ALLOWED_ORIGINS`, `PROBEIQ_DATA_DIR`, `PROBEIQ_ENVIRONMENT`.
 
 ## Async programming
 - The current endpoints are synchronous; the declared async/db/redis stack is
