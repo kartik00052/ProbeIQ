@@ -14,7 +14,7 @@
 
 **A candidate's 31-day learning journey becomes a live, adaptive technical interview — every next question decided by the answer before it.**
 
-[Why ProbeIQ](#the-problem) · [The interview experience](#the-interview-experience) · [Under the hood](#under-the-hood) · [API](#api) · [Quick start](#quick-start) · [Testing](#testing--quality)
+[Why ProbeIQ](#the-problem) · [The interview experience](#the-interview-experience) · [Under the hood](#under-the-hood) · [API](#api) · [Quick start](#quick-start) · [Deployment](#deployment) · [Testing & quality](#testing--quality)
 
 </div>
 
@@ -33,6 +33,7 @@
 - [How a turn travels](#how-a-turn-travels)
 - [The journey](#the-journey)
 - [Quick start](#quick-start)
+- [Deployment](#deployment)
 - [Configuration](#configuration)
 - [Testing & quality](#testing--quality)
 - [Security](#security)
@@ -426,6 +427,24 @@ npm run test:e2e
 
 ---
 
+## Deployment
+
+**Live (2026-08-09, both platforms verified end-to-end):**
+
+- Backend — Render (Docker): `https://probeiq.onrender.com`
+- Frontend — Vercel (static SPA): `https://probe-iq-dun.vercel.app`
+
+The browser talks only to the Vercel origin; `frontend/vercel.json` rewrites `/api/*` to the Render backend, so the session cookie (`HttpOnly`, `SameSite=Lax`) round-trips same-origin. No CORS is required in production beyond `PROBEIQ_CORS_ALLOWED_ORIGINS` being set to the Vercel origin.
+
+Key facts (full step-by-step in [`deployment.md`](deployment.md)):
+
+- **Render** uses the repo-root `Dockerfile` (no root-directory/build-context overrides). It builds deps via `uv export --no-group dev --locked` → `pip install -r` into the system Python. The Render **Docker Command must be** `uvicorn app.main:app --host 0.0.0.0 --port $PORT` — do **not** prefix it with `/bin/sh -c "..."`, because Render already wraps the field in a shell and a nested `sh -c` collapses the command into one token (exit 127).
+- **Render env vars:** `PROBEIQ_ENVIRONMENT=production`, `PROBEIQ_CORS_ALLOWED_ORIGINS=https://probe-iq-dun.vercel.app`, `PROBEIQ_LLM_ENABLED=false` (delete all other `PROBEIQ_LLM_*` rows), `PROBEIQ_DATABASE_URL` empty (SQLite).
+- **Vercel** imports the repo with **Root Directory = `frontend`**; build `npm run build`, output `dist`. `frontend/vercel.json` also provides the SPA fallback so deep links (`/setup`, `/interview`, `/complete`, `/login`, `/register`) resolve.
+- **Operational constraints (demo-scale):** interview sessions are in-memory (a redeploy drops in-progress interviews); SQLite on Render's ephemeral disk means accounts reset on redeploy/restart. Free Render instances sleep after idle — first request after a pause can take ~30–60s.
+
+---
+
 ## Configuration
 
 Backend settings come from `PROBEIQ_`-prefixed environment variables via pydantic-settings. Copy `backend/.env.example` → `backend/.env` for local overrides (git-ignored). **Never commit a real key.**
@@ -498,6 +517,7 @@ Run and verified at the time of this README revision (Aug 2026) — they may dri
 - Accounts: register / login / logout / me, Argon2id, HTTP-only session cookies, SQLite persistence, interview ownership
 - React "Observatory 3D" console — WebGL presence, adaptive state machine, reduced-motion + fallback support
 - Docker + Compose backend; CORS with credentials; 180 backend tests, 51 e2e tests, ruff/mypy clean
+- **Live deployment:** Render (Docker) backend + Vercel static frontend, same-origin `/api` proxy, verified register → cookie → `me` round-trip end-to-end (2026-08-09)
 
 **Partially verified**
 - Live NVIDIA inference is **implemented but not verified from the authoring machine** (the gateway times out on valid requests at the network level; the offline path is the fully verified default). The failure path is graceful and safe — a failed LLM call never mutates session state.
@@ -520,6 +540,7 @@ Short and honest:
 3. Harden auth with rate limiting on login/register.
 4. Persist interview sessions across restarts.
 5. Capture demo media after the final UI pass.
+6. (Done — 2026-08-09) Deploy to Render + Vercel; re-verify the deployment checklist from `deployment.md` after any infra change.
 
 ---
 

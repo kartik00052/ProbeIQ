@@ -29,6 +29,14 @@ ProbeIQ is an AI technical-interview agent: a FastAPI backend (`backend/`) that 
 - Integrate only against the contract above; backend is the source of truth. Don't fabricate endpoints, responses, or interview states.
 - Follow `.opencode/FRONTEND.md` conventions: thin pages, zustand stores, centralized framer-motion variants (`src/lib/motion.ts`), `prefers-reduced-motion`, accessible semantics.
 
+## Deployment (live, 2026-08-09)
+- **Live URLs:** backend `https://probeiq.onrender.com` (Render, Docker), frontend `https://probe-iq-dun.vercel.app` (Vercel, static SPA). Verified end-to-end: Vercel `/api/*` rewrite → Render, register → 201, `GET /api/auth/me` → `{user}` via cookie round-trip.
+- **Render builds the repo-root `Dockerfile`** (copies `backend/...` paths; build context defaults to repo root — do not set root-directory or build-context fields). It installs deps with `uv export --no-group dev --locked` → `pip install -r` into the system Python (not a venv). The image CMD points at `/usr/local/bin/uvicorn`.
+- **Render Docker Command must be exactly** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`. Do NOT prefix it with `/bin/sh -c "..."` — Render already wraps the field in a shell; a nested `sh -c` collapses the whole command into one token and the service exits 127 (`not found`). This bit us on the first deploy.
+- **Render env vars:** `PROBEIQ_ENVIRONMENT=production` (enables `Secure` cookie), `PROBEIQ_CORS_ALLOWED_ORIGINS=https://probe-iq-dun.vercel.app`, `PROBEIQ_LLM_ENABLED=false`, `PROBEIQ_DATABASE_URL` empty (SQLite). `backend/Dockerfile` (used by local `docker build ./backend` / compose) is intentionally separate and unchanged.
+- **Vercel:** Root Directory = `frontend`; build `npm run build`, output `dist`. `frontend/vercel.json` rewrites `/api/(.*)` → `https://probeiq.onrender.com/api/$1` and falls back other routes to `/index.html` (SPA deep links).
+- **Operational constraints:** interview sessions are in-memory (redeploy drops them); SQLite on Render's ephemeral disk resets accounts on redeploy/restart; free Render instances sleep after idle (~30–60 s cold start). Full guide: `deployment.md` (read it before changing anything deployment-related).
+
 ## Git
 - Follow `.opencode/GIT.md` strictly: no force-push, no `reset --hard`/clean/restore, no history rewrites, no blind `git add .`; targeted staging only.
 - `frontend/node_modules/` is untracked (removed from tracking; kept local via `.gitignore`).

@@ -1,7 +1,29 @@
 # ProbeIQ — Backend Explanation & Current State
 
-> **Addendum (2026-08-09, commit `b9a711a` "feat(auth)…").** The snapshot below
-> predates authentication. Current state at a glance:
+> **Addendum (2026-08-09, deployment).** The snapshot below and the auth
+> addendum above predate the production deployment. Current state at a glance:
+>
+> - **Live deployment:** backend `https://probeiq.onrender.com` (Render, Docker)
+>   and frontend `https://probe-iq-dun.vercel.app` (Vercel, static SPA). The
+>   Vercel `/api/*` rewrite proxies same-origin to Render; register → 201 and
+>   `GET /api/auth/me` → `{user}` round-trip verified end-to-end.
+> - **Render build:** the repo-root `Dockerfile` (not `backend/Dockerfile`).
+>   It installs deps with `uv export --no-group dev --locked` →
+>   `pip install -r` into the system Python (`/usr/local`). The Render Docker
+>   Command is exactly `uvicorn app.main:app --host 0.0.0.0 --port $PORT` —
+>   never prefix it with `/bin/sh -c "..."` (nested shell → exit 127).
+> - **Render env:** `PROBEIQ_ENVIRONMENT=production`,
+>   `PROBEIQ_CORS_ALLOWED_ORIGINS=https://probe-iq-dun.vercel.app`,
+>   `PROBEIQ_LLM_ENABLED=false` (all other `PROBEIQ_LLM_*` rows deleted),
+>   `PROBEIQ_DATABASE_URL` empty.
+> - **Constraints (demo-scale):** interview sessions are in-memory and SQLite
+>   accounts live on Render's ephemeral disk, so both reset on redeploy/restart.
+> - Full guide: `deployment.md`. Section 10 (Docker) below describes the local
+>   `backend/Dockerfile`, which remains unchanged and separate from the
+>   repo-root production Dockerfile.
+>
+> **Auth addendum (2026-08-09, commit `b9a711a` "feat(auth)…").** The snapshot
+> below predates authentication. Current state at a glance:
 >
 > - **New endpoints** (user-approved extension to `technical-spec.md`):
 >   `POST /api/auth/register` (201), `POST /api/auth/login`,

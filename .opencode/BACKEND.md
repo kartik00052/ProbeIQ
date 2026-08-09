@@ -138,6 +138,26 @@
   `asyncpg`/`redis` deps declared in `backend/pyproject.toml` are unused
   placeholders; a Postgres migration is a separate follow-up item.
 
+## Deployment (production)
+- Live (2026-08-09): backend `https://probeiq.onrender.com` (Render, Docker),
+  frontend `https://probe-iq-dun.vercel.app` (Vercel). See `deployment.md`
+  for the authoritative guide; read it before changing anything deployment-related.
+- Render builds the **repo-root `Dockerfile`** (build context = repo root; do
+  not set root-directory/build-context fields). It runs
+  `uv export --no-group dev --locked --format requirements.txt` then
+  `pip install -r` into the **system Python** (`/usr/local`), not a venv.
+  `backend/Dockerfile` is the local-dev file and is intentionally separate.
+- **Render Docker Command must be exactly**
+  `uvicorn app.main:app --host 0.0.0.0 --port $PORT`. Do NOT prefix it with
+  `/bin/sh -c "..."` — Render already wraps the field in a shell; a nested
+  `sh -c` collapses the command into one token and the service exits 127.
+- Render env vars: `PROBEIQ_ENVIRONMENT=production`,
+  `PROBEIQ_CORS_ALLOWED_ORIGINS=https://probe-iq-dun.vercel.app`,
+  `PROBEIQ_LLM_ENABLED=false` (delete all other `PROBEIQ_LLM_*` rows),
+  `PROBEIQ_DATABASE_URL` empty (SQLite on ephemeral disk).
+- Operational constraints: interview sessions are in-memory and SQLite accounts
+  reset on redeploy/restart; free Render instances sleep after idle.
+
 ## Testing
 - Run `pytest` from `backend/` (test suite: `backend/tests/`; 180 passed,
   3 skipped — the skips are live-LLM only).

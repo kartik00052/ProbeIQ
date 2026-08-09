@@ -102,6 +102,12 @@ Implemented:
   feedback pages), auth + interview zustand stores, API client/services, route
   guards, WebGL presence with fallbacks, reduced motion. Verified build/lint
   and a Playwright e2e suite (51 passed, 4 skipped).
+- Deployment (2026-08-09): live on Render (Docker, repo-root `Dockerfile`,
+  `uv export` + `pip install` into system Python) at
+  `https://probeiq.onrender.com` and Vercel (static SPA, Root Directory
+  `frontend`, `/api/*` rewrite) at `https://probe-iq-dun.vercel.app`.
+  Verified end-to-end register → session cookie → `GET /api/auth/me`.
+  See `deployment.md` for the full guide.
 
 Planned / not yet implemented:
 - Persisted interview sessions (accounts persist in SQLite, but interview
@@ -112,6 +118,9 @@ Planned / not yet implemented:
 - Interview session state is process-local (`InMemorySessionStore`): a server
   restart drops all interview sessions (auth accounts/sessions persist in
   SQLite).
+- Deployment state is demo-scale: SQLite lives on Render's ephemeral disk, so
+  accounts also reset on redeploy/restart; free Render instances sleep after
+  idle (~30-60 s cold start).
 - No rate limiting / lockout on auth endpoints.
 - LLM phrasing/eval is optional and not exercised by the default test suite.
 

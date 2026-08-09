@@ -1,6 +1,15 @@
 # ProbeIQ — Deployment Guide
 
-Deployment plan for the current verified state of ProbeIQ. Everything in this guide was verified locally against a production-shape replica of this exact architecture (see "Production-shape verification" below).
+## Status: DEPLOYED AND VERIFIED (2026-08-09)
+
+| Service | Platform | URL | Status |
+|---|---|---|---|
+| Backend | Render (Docker) | `https://probeiq.onrender.com` | Live — `GET /api/auth/me` → `200 {"user":null}` |
+| Frontend | Vercel (static SPA) | `https://probe-iq-dun.vercel.app` | Live — `/setup` renders, `/api` proxy reaches backend |
+
+End-to-end verified through the Vercel origin: register → `201`, then `GET /api/auth/me` → `{"user":{"id":...,"email":...}}` (session cookie round-trips through the proxy). See the post-deploy checklist below.
+
+This guide documents how the deployment was built and how to reproduce it. Everything was first verified locally against a production-shape replica (see "Production-shape verification" below).
 
 ## Architecture
 
@@ -38,7 +47,7 @@ Do **not** prefix the Docker Command with `/bin/sh -c "..."`. Render already run
 
 Environment variables (`PROBEIQ_` prefix, pydantic-settings — see `backend/.env.example`):
 - `PROBEIQ_ENVIRONMENT=production` — required; the session cookie only gets the `Secure` flag in production (`backend/app/api/routes/auth.py`).
-- `PROBEIQ_CORS_ALLOWED_ORIGINS` — the deployed frontend origin (e.g. `https://probe-iq.vercel.app`); never `*`.
+- `PROBEIQ_CORS_ALLOWED_ORIGINS` — the deployed frontend origin `https://probe-iq-dun.vercel.app`; never `*`.
 - `PROBEIQ_LLM_ENABLED=false` — and **delete all other `PROBEIQ_LLM_*` rows**, so startup never parses a bad LLM roster and no keys are uploaded.
 - `PROBEIQ_DATABASE_URL` — leave empty (SQLite under `app/data`); do not use Render's Postgres "Generate".
 
@@ -52,20 +61,20 @@ Constraints:
    - Build command: `npm run build` (`tsc -b && vite build`, already the `build` script).
    - Output directory: `dist`.
 2. `vercel.json` (committed at `frontend/vercel.json`, read from the project root `frontend/`) does two things:
-   - `/api/(.*)` → `https://probeiq-backend.onrender.com/api/$1` — same-origin proxy to the backend. **Replace this URL with the real Render service URL** (Render assigns a fixed `<name>.onrender.com` host) before or right after first deploy.
+   - `/api/(.*)` → `https://probeiq.onrender.com/api/$1` — same-origin proxy to the backend (already committed in `frontend/vercel.json`). If the backend moves, update this URL to the new Render `<name>.onrender.com` host.
    - `/(.*)` → `/index.html` — SPA fallback so deep links (`/setup`, `/interview`, `/complete`, `/login`, `/register`) resolve on the production build.
    - `rewrites` (not `routes`) is used deliberately: it checks the filesystem first, so static assets are served normally while only unknown routes fall back to `index.html`.
 3. No code changes needed: `frontend/src/api/client.ts` already uses `baseURL: '/api'` with `withCredentials: true`, which is exactly right for same-origin proxying.
 
 ## Post-deploy verification checklist
 
-Run against the deployed site (not localhost):
+Verified 2026-08-09 against the live site:
 
-- [ ] Deep link loads: `https://<frontend>.vercel.app/setup` renders the app (SPA fallback).
-- [ ] Proxy works: register a new account → lands on `/setup`.
-- [ ] Cookie round-trip: after login, `GET /api/auth/me` returns `{"user": {...}}` (not `null`). This proves the rewrite forwards `Set-Cookie` and the session cookie back.
-- [ ] Full journey: begin an interview, answer through to `/complete`, confirm the report renders.
-- [ ] Account isolation: a second user must land on `/setup`, never another user's report.
+- [x] Deep link loads: `https://probe-iq-dun.vercel.app/setup` renders the app (SPA fallback).
+- [x] Proxy works: register a new account (via the Vercel origin) → `201`.
+- [x] Cookie round-trip: after register/login, `GET /api/auth/me` returns `{"user": {...}}` (not `null`) — proves the rewrite forwards `Set-Cookie` and the session cookie back.
+- [ ] Full journey: begin an interview, answer through to `/complete`, confirm the report renders. *(Manual browser check — pending)*
+- [ ] Account isolation: a second user must land on `/setup`, never another user's report. *(Manual browser check — pending)*
 
 ## Production-shape verification (how this was proven locally)
 
