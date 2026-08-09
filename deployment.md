@@ -18,16 +18,19 @@ Because the Vercel rewrite is same-origin, the browser talks only to the Vercel 
 
 ## Backend → Render
 
-The backend has no `requirements.txt` (uv-managed), so Render's default Python build will not work. Use the **Docker** runtime, which is already set up (`backend/Dockerfile`).
+The backend has no `requirements.txt` (uv-managed), so Render's default Python build will not work. Use the **Docker** runtime. The repo has two Dockerfiles:
 
-Service fields (important — the **build context must point at `backend`**, or the Dockerfile's `COPY`s won't resolve and the build fails with "`/pyproject.toml` not found"):
+- `Dockerfile` (repo root) — **the one Render uses.** It copies `backend/...` paths relative to the repo-root build context, so Render needs **no** root-directory or build-context overrides.
+- `backend/Dockerfile` — used by local `docker build ./backend` and `docker compose` (build context `backend/`). Do not point Render at it; it would need its build context set to `backend/`, and that dashboard field has proven unreliable.
+
+Service fields:
 
 | Field | Value |
 |---|---|
 | Name / Language / Branch | `ProbeIQ` / `Docker` / `main` |
 | Root Directory | *(empty)* |
-| Dockerfile Path | `backend/Dockerfile` |
-| **Docker Build Context Directory** | **`backend`** |
+| Dockerfile Path | `Dockerfile` |
+| Docker Build Context Directory | *(empty — defaults to repo root)* |
 | Docker Command | `/bin/sh -c "uvicorn app.main:app --host 0.0.0.0 --port $PORT"` |
 | Health Check Path | *(empty — the app has no `/healthz`; a 404 there marks the service unhealthy)* |
 

@@ -1,0 +1,38 @@
+# VCS
+.git
+.gitignore
+
+# Frontend (deployed separately to Vercel; not part of the backend image)
+frontend
+e2e
+playwright-report
+test-results
+
+# Python / uv (mirrors backend/.dockerignore)
+backend/.venv
+backend/.env
+backend/__pycache__
+backend/**/__pycache__
+backend/*.py[cod]
+backend/.pytest_cache
+backend/.mypy_cache
+backend/.ruff_cache
+backend/*.egg-info
+backend/tests
+backend/main.py
+backend/AUDIT_REPORT.md
+backend/audit_verify.py
+
+# Logs / temp
+*.log
+*.tmp
+*.db
+
+# Docs
+deployment.md
+explanation.md
+README.md
+AGENTS.md
+.opencode
+.claude
+.agents
